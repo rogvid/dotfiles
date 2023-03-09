@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
 # Symlink .config files and directories
-cp -rsi $HOME/.dotfiles/.config $HOME/
+cp -rsfi $HOME/.dotfiles/.config $HOME/
 
 # Symlink scripts
-cp -rsi $HOME/.dotfiles/.local $HOME/
+cp -rsfi $HOME/.dotfiles/.local $HOME/
 
 # Symlink bash
-cp -rsi $HOME/.dotfiles/.bash* $HOME/
+cp -rsfi $HOME/.dotfiles/.bash* $HOME/
 
 # Symlink tmux
-cp -rsi $HOME/.dotfiles/.tmux $HOME/
-cp -rsi $HOME/.dotfiles/.tmux.conf $HOME/
+cp -rsfi $HOME/.dotfiles/.tmux $HOME/
+cp -rsfi $HOME/.dotfiles/.tmux.conf $HOME/
 

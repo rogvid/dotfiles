@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+uuidgen | tr -d "-" | xargs mkdir -v | cut -d ' ' -f4- | grep -o -E "[a-z0-9]+"

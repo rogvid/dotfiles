@@ -1,0 +1,8 @@
+st.font: Fira Code:pixelsize=17:antialias=true:autohint=true
+regolith.wallpaper.file: /home/flowteller/Pictures/Wallpapers/ilya-ozornin-warhammer-magnus-the-red.jpg
+regolith.lockscreen.wallpaper.file: /home/flowteller/Pictures/Wallpapers/ilya-ozornin-warhammer-magnus-the-red.jpg
+wm.gaps.inner.size: 20
+wm.gaps.outer.size: 20
+
+!regolith.look.path: /usr/share/regolith-look/ayu
+regolith.look.path: /usr/share/regolith-look/nord

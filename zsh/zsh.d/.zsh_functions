@@ -1,0 +1,15 @@
+function tops(){
+    if [ $# -eq 0 ]; then
+        ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head
+    else
+        ps -eo pid,ppid,cmd,%mem,%cpu --sort=-$1 | head
+    fi
+}
+
+function msproductkey(){
+    echo `sudo hexdump -s 56 -e '"MSDM key: " /29 "%s\n"' /sys/firmware/acpi/tables/MSDM`
+}
+
+function speedtest(){
+    curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
+}

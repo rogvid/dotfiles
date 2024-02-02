@@ -1,26 +1,25 @@
-# Instructions for quickly setting a new machine
-Having cloned this repository you can run `setup.sh` to create symlinks where config files are usually placed. The setup.sh runs `cp -rsfi` on a variety of files and folders, so it will ask whether the file should be overwritten if it exists.
+# My Dotfiles
 
-## First steps
-The first steps after having set up a new machine is to ensure everything is up to date, and we have the necessary libraries
+This repository contains the configurations for tools that I use on a daily basis.
+
+## Requirements
+Before setting up a new dev environment make sure the following is present:
+- `git`
+- `curl`
+
+# Instructions for quickly setting up configurations on a new machine
+
+The recommended setup is to run the init script from git:
 
 ```bash
-sudo apt-get update
-sudo apt-get upgrade
-```
-
-Some things, such as build-essentials and gcc are almost always necessary for my use-cases so make sure they are installed
-
-```bash
-sudo apt-get install build-essentials
-sudo apt-get install gcc
+curl -Lks github.com/rogvid/.dotfiles/init.sh | /bin/bash
 ```
 
 When this is done, install the tools below following their respective guides.
 
 ## Tools
 ### CLI 
-- oh-my-posh with
+- oh-my-zsh with
 - batcat - https://github.com/sharkdp/bat
 - gdu
 - direnv

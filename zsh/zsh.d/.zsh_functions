@@ -1,15 +1,32 @@
 function tops(){
-    if [ $# -eq 0 ]; then
-        ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head
-    else
-        ps -eo pid,ppid,cmd,%mem,%cpu --sort=-$1 | head
-    fi
+  # List the top 10 processes by memory usage or CPU usage
+  if [ $# -eq 0 ]; then
+      ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head
+  else
+      ps -eo pid,ppid,cmd,%mem,%cpu --sort=-$1 | head
+  fi
 }
 
 function msproductkey(){
-    echo `sudo hexdump -s 56 -e '"MSDM key: " /29 "%s\n"' /sys/firmware/acpi/tables/MSDM`
+  # Get the Windows product key
+  echo `sudo hexdump -s 56 -e '"MSDM key: " /29 "%s\n"' /sys/firmware/acpi/tables/MSDM`
 }
 
 function speedtest(){
-    curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
+  # Run a speedtest
+  curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
+}
+
+function pathappend() {
+  # Add directories to the PATH if not already there.
+  # Directories will only be added if the path exists and is not already in the PATH
+  # Usage: pathappend dir1 dir2 dir3 ...
+  for ARG in "$@"
+  do
+    eval extra_path=$ARG
+    if [ -d "$extra_path" ] && [[ ":$PATH:" != *":$extra_path:"* ]]; then
+        PATH="${PATH:+"$PATH:"}$extra_path"
+    fi
+  done
+  unset extra_path
 }

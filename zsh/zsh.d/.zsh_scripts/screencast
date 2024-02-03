@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+# Default values
+audio_enabled=false
+select_window=false
+output_file="$(date +%Y-%m-%d_%H-%M_%S).mkv"
+
+# Function to display usage information
+usage() {
+    echo "Record a screencast using ffmpeg. "
+    echo ""
+    echo "This script can be used to record the entire screen.
+By default, only video is recorded, but audio can be
+captured too by using the --audio flag."
+    echo ""
+    echo "Usage: screencast [OPTIONS]"
+    echo "Options:"
+    echo "  -h, --help         Display this help message"
+    echo "  -o <output_file>   Specify the output file (default: output.mkv)"
+    echo "  --audio            Enable audio recording (optional)"
+    echo "  --window           Select a window to record (optional)"
+    exit 1
+}
+
+# Parse command-line options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --audio)
+            audio_enabled=true
+            shift
+            ;;
+        -o)
+            if [[ $# -gt 1 ]]; then
+                output_file="$2"
+                shift 2
+            else
+                echo "Error: Missing argument for -o option."
+                usage
+            fi
+            ;;
+        --window)
+            select_window=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
+# Prepare the ffmpeg command
+ffmpeg_command="ffmpeg -f x11grab -r 25"
+
+if $select_window; then
+  ffmpeg_command+=" $(xwininfo | gawk 'match($0, /-geometry ([0-9]+x[0-9]+).([0-9]+).([0-9]+)/, a)\
+      { print "-video_size " a[1] " -i +" a[2] "," a[3] }')"
+else
+  ffmpeg_command+=" -i :0.0"
+fi 
+
+if $audio_enabled; then
+    ffmpeg_command+=" -f alsa -ac 2 -i pulse"
+fi
+
+
+ffmpeg_command+=" -vcodec libx264 -crf 0 -preset ultrafast -acodec pcm_s16le -threads 0 $output_file"
+
+# Run the ffmpeg command
+echo "Running the following command:"
+echo "$ffmpeg_command"
+eval "$ffmpeg_command"

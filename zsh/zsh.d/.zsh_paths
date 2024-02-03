@@ -1,0 +1,25 @@
+# Basic paths
+${HOME}/.local/bin
+${HOME}/.cargo/bin
+${HOME}/.yarn/bin
+
+# Pyenv is deprecated use Pixi instead
+${HOME}/.pyenv/bin
+
+# Pixi 
+${HOME}/.pixi/bin
+
+# Applications
+${HOME}/Applications
+
+# Pulumi
+${HOME}/.pulumi/bin
+
+# mssql
+/opt/mssql-tools/bin
+
+# Go
+/usr/local/go/bin
+
+# NPM
+${HOME}/.npm-global/bin

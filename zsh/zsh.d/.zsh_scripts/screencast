@@ -3,69 +3,111 @@
 # Default values
 audio_enabled=false
 select_window=false
+select_rectangle=false
 output_file="$(date +%Y-%m-%d_%H-%M_%S).mkv"
 
 # Function to display usage information
 usage() {
-    echo "Record a screencast using ffmpeg. "
-    echo ""
-    echo "This script can be used to record the entire screen.
+	echo "Record a screencast using ffmpeg. "
+	echo ""
+	echo "This script can be used to record the entire screen.
 By default, only video is recorded, but audio can be
 captured too by using the --audio flag."
-    echo ""
-    echo "Usage: screencast [OPTIONS]"
-    echo "Options:"
-    echo "  -h, --help         Display this help message"
-    echo "  -o <output_file>   Specify the output file (default: output.mkv)"
-    echo "  --audio            Enable audio recording (optional)"
-    echo "  --window           Select a window to record (optional)"
-    exit 1
+	echo ""
+	echo "Usage: screencast [OPTIONS]"
+	echo "Options:"
+	echo "  -h, --help         Display this help message"
+	echo "  -o <output_file>   Specify the output file (default: output.mkv)"
+	echo "  --audio            Enable audio recording (optional)"
+	echo "  --window           Select a window to record (optional)"
+	echo "  --region           Select a region to record (optional)"
+	exit 1
 }
+#
+# Check if ffmpeg is installed
+if ! command -v ffmpeg &>/dev/null; then
+	echo "ffmpeg could not be found. Please install ffmpeg."
+	exit 1
+fi
+#
+# Check if x11-utils is installed
+if ! command -v xdpyinfo &>/dev/null; then
+	echo "xdpyinfo could not be found. Please install x11-utils."
+	exit 1
+fi
+
+# Check if slop is installed only if --select option is used
+if ! command -v slop &>/dev/null; then
+	echo "slop could not be found. Please install slop to use the --region option."
+	exit 1
+fi
 
 # Parse command-line options
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --audio)
-            audio_enabled=true
-            shift
-            ;;
-        -o)
-            if [[ $# -gt 1 ]]; then
-                output_file="$2"
-                shift 2
-            else
-                echo "Error: Missing argument for -o option."
-                usage
-            fi
-            ;;
-        --window)
-            select_window=true
-            shift
-            ;;
-        -h|--help)
-            usage
-            ;;
-        *)
-            echo "Unknown option: $1"
-            usage
-            ;;
-    esac
+	case "$1" in
+	--audio)
+		audio_enabled=true
+		shift
+		;;
+	-o)
+		if [[ $# -gt 1 ]]; then
+			output_file="$2"
+			shift 2
+		else
+			echo "Error: Missing argument for -o option."
+			usage
+		fi
+		;;
+	--window)
+		select_window=true
+		shift
+		;;
+	--region)
+		select_rectangle=true
+		shift
+		;;
+	-h | --help)
+		usage
+		;;
+	*)
+		echo "Unknown option: $1"
+		usage
+		;;
+	esac
 done
 
 # Prepare the ffmpeg command
 ffmpeg_command="ffmpeg -f x11grab -r 25"
 
 if $select_window; then
-  ffmpeg_command+=" $(xwininfo | gawk 'match($0, /-geometry ([0-9]+x[0-9]+).([0-9]+).([0-9]+)/, a)\
-      { print "-video_size " a[1] " -i +" a[2] "," a[3] }')"
+	WINDOW_ID=$(xdotool selectwindow)
+	read -r X Y W H < <(xdotool getwindowgeometry --shell "$WINDOW_ID" | grep -E 'WIDTH|HEIGHT|X|Y' | sed 's/[A-Z=]//g')
+	GEOMETRY="${W}x${H}"
+	OFFSET="-i :0.0+${X},${Y}"
+	# ffmpeg_command+=" $(xwininfo | gawk 'match($0, /-geometry ([0-9]+x[0-9]+).([0-9]+).([0-9]+)/, a)\
+	#      { print "-video_size " a[1] " -i +" a[2] "," a[3] }')"
+elif $select_rectangle; then
+	# Use slop to select the area and store the geometry in a variable
+	read -r X Y W H < <(slop -f "%x %y %w %h")
+	# Format the geometry for ffmpeg
+	GEOMETRY="${W}x${H}"
+	OFFSET="-i :0.0+${X},${Y}"
 else
-  ffmpeg_command+=" -i :0.0"
-fi 
+	# Dynamically get the screen dimensions
+	SCREEN_DIMENSIONS=$(xdpyinfo | grep 'dimensions:' | awk '{print $2}')
+	SCREEN_WIDTH=$(echo "${SCREEN_DIMENSIONS}" | cut -dx -f1)
+	SCREEN_HEIGHT=$(echo "${SCREEN_DIMENSIONS}" | cut -dx -f2)
 
-if $audio_enabled; then
-    ffmpeg_command+=" -f alsa -ac 2 -i pulse"
+	# Use the dynamically determined screen dimensions
+	GEOMETRY="${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
+	OFFSET="-i :0.0"
 fi
 
+ffmpeg_command+=" -video_size ${GEOMETRY} ${OFFSET}"
+
+if $audio_enabled; then
+	ffmpeg_command+=" -f alsa -ac 2 -i pulse"
+fi
 
 ffmpeg_command+=" -vcodec libx264 -crf 0 -preset ultrafast -acodec pcm_s16le -threads 0 $output_file"
 

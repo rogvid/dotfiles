@@ -6,9 +6,9 @@ export ZSH_CONFIG="$HOME/zsh.d"
 export ZSH="$HOME/.oh-my-zsh"
 export EDITOR='nvim'
 
+unsetopt no_match
 unset EXTRA_PATHS
 EXTRA_PATHS = ()
-echo $EXTRA_PATHS
 
 
 # Set name of the theme to load --- if set to "random", it will
@@ -21,6 +21,7 @@ ZSH_THEME=""
 plugins=(
     git
     zsh-autosuggestions
+    zsh-syntax-highlighting
     you-should-use
 )
 
@@ -46,24 +47,32 @@ eval "$(starship init zsh)"
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
 
-# Load custom paths
-if [ -f $ZSH_CONFIG/.zsh_paths ]; then while IFS= read -r line; do if [[ ! $line = \#* ]]; then EXTRA_PATHS+=("$line"); elif [[ $line == *"deprecated"* ]]; then echo "Warning: $line"; fi; done < $ZSH_CONFIG/.zsh_paths; fi
+# Load paths to append to PATH from file
+if [ -f $ZSH_CONFIG/.zsh_paths ]; then 
+  while IFS= read -r line; do 
+    if [[ ! $line = \#* ]]; then 
+      EXTRA_PATHS+=("$line"); 
+    elif [[ $line == *"deprecated"* ]]; then 
+      echo "Warning: $line"; 
+    fi; 
+  done < $ZSH_CONFIG/.zsh_paths; 
+fi
 
 # Load aliases
-if [ -f $ZSH_CONFIG/.zsh_aliases ]; then . $ZSH_CONFIG/.zsh_aliases; fi
+[ -f $ZSH_CONFIG/.zsh_aliases ] && . $ZSH_CONFIG/.zsh_aliases;
 
 # Load functions
-if [ -f $ZSH_CONFIG/.zsh_functions ]; then . $ZSH_CONFIG/.zsh_functions; fi
+[ -f $ZSH_CONFIG/.zsh_functions ] && . $ZSH_CONFIG/.zsh_functions;
 
 # Load scripts
 # if [ -d $ZSH_CONFIG/.zsh_scripts ]; then export PATH=$ZSH_CONFIG/.zsh_scripts/:$PATH; fi
-if [ -d $ZSH_CONFIG/.zsh_scripts ]; then EXTRA_PATHS+=("$ZSH_CONFIG/.zsh_scripts/"); fi
+[ -d $ZSH_CONFIG/.zsh_scripts ] && EXTRA_PATHS+=("$ZSH_CONFIG/.zsh_scripts/");
 
 # Load custom keymaps
-if [ -f $ZSH_CONFIG/.zsh_keymaps ]; then . $ZSH_CONFIG/.zsh_keymaps; fi
+[ -f $ZSH_CONFIG/.zsh_keymaps ] && . $ZSH_CONFIG/.zsh_keymaps;
 
 # Load custom settings
-if [ -f $ZSH_CONFIG/.zsh_configurations ]; then . $ZSH_CONFIG/.zsh_configurations; fi
+[ -f $ZSH_CONFIG/.zsh_configurations ] && . $ZSH_CONFIG/.zsh_configurations;
 
 
 # Add all extra paths 
@@ -75,9 +84,12 @@ eval "$(zoxide init zsh)"
 # Enable fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-# mapfile -t myArray < file.txt
+# Enable pyenv
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
 
 # Enable direnv
+
 eval "$(direnv hook zsh)"
 
 # Setting up pixi

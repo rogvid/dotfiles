@@ -7,16 +7,6 @@ function tops(){
   fi
 }
 
-function msproductkey(){
-  # Get the Windows product key
-  echo `sudo hexdump -s 56 -e '"MSDM key: " /29 "%s\n"' /sys/firmware/acpi/tables/MSDM`
-}
-
-function speedtest(){
-  # Run a speedtest
-  curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python -
-}
-
 function pathappend() {
   # Add directories to the PATH if not already there.
   # Directories will only be added if the path exists and is not already in the PATH

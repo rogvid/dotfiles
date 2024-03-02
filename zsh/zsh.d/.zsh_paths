@@ -23,3 +23,6 @@ ${HOME}/.pulumi/bin
 
 # NPM
 ${HOME}/.npm-global/bin
+
+# NVIM
+/opt/nvim-linux64/bin

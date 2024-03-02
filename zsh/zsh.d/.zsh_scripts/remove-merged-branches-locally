@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Check if
+[ command -v rg ] &>/dev/null && echo "Command expects ripgrep to be installed" && return 1
+git branch --merged | rg -v '(^\*|master|main|dev)' >/tmp/merged-branches && vi /tmp/merged-branches && xargs git branch -d </tmp/merged-branches

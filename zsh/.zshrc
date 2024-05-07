@@ -92,6 +92,9 @@ eval "$(pyenv virtualenv-init -)"
 
 eval "$(direnv hook zsh)"
 
+# Enable navi
+eval "$(navi widget zsh)"
+
 # Setting up pixi
 # Install or update with `curl -fsSL https://pixi.sh/install.sh | bash`
 eval "$(pixi completion --shell zsh)"

@@ -6,6 +6,8 @@
   path = ~/.gitconfig-kvist
 [includeif "gitdir:~/personal/"]
   path = ~/.gitconfig-personal
+[includeif "gitdir:~/"]
+  path = ~/.gitconfig-personal
 [credential]
 	helper = store
 [init]

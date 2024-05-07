@@ -1,3 +1,5 @@
 [user]
   email = rogvidarge@gmail.com
   name = Rogvi David Arge
+[core]
+  sshCommand = ssh -i ~/.ssh/id_rsa_personal

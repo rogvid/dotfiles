@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+# Help message
+display_help() {
+    echo "Usage: $0 source destination"
+    echo
+    echo "Compress the source directory, move the archive to the destination directory, and delete source."
+    echo
+    echo "Options:"
+    echo "  source       The directory to be compressed"
+    echo "  destination  The directory where the compressed file will be moved"
+    exit 1
+}
+
+# Check if the right number of arguments are provided
+if [ $# -ne 2 ]; then
+    echo "Error: Invalid number of arguments."
+    display_help
+fi
+
+# Assign arguments to variables
+SOURCE=$1
+DESTINATION=$2
+
+# Check if source directory exists
+if [ ! -d "$SOURCE" ]; then
+    echo "Error: Source directory '$SOURCE' does not exist."
+    exit 1
+fi
+
+# Check if destination directory exists
+if [ ! -d "$DESTINATION" ]; then
+    echo "Error: Destination directory '$DESTINATION' does not exist."
+    exit 1
+fi
+
+# Create a timestamped archive name
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+ARCHIVE_NAME="$(basename "$SOURCE")_$TIMESTAMP.tar.gz"
+
+# Define patterns for folders to remove
+FOLDERS_TO_REMOVE=(".mypy_cache" ".pixi" ".direnv" ".venv" "venv" "__pycache__", "node_modules")
+
+# Remove unwanted folders within the source directory
+for folder in "${FOLDERS_TO_REMOVE[@]}"; do
+    find "$SOURCE" -type d -name "$folder" -prune -exec rm -rf {} \;
+done
+
+# Compress the source directory
+tar --remove-files -czvf "$ARCHIVE_NAME" -C "$(dirname "$SOURCE")" "$(basename "$SOURCE")"
+
+# Move the archive to the destination directory
+mv "$ARCHIVE_NAME" "$DESTINATION"
+echo "Compressed and moved '$SOURCE' to '$DESTINATION/$ARCHIVE_NAME'"

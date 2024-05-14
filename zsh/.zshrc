@@ -99,3 +99,5 @@ eval "$(navi widget zsh)"
 # Install or update with `curl -fsSL https://pixi.sh/install.sh | bash`
 eval "$(pixi completion --shell zsh)"
 
+
+if [ -e /home/flowteller/.nix-profile/etc/profile.d/nix.sh ]; then . /home/flowteller/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer

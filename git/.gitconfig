@@ -9,19 +9,21 @@
 [includeif "gitdir:~/"]
   path = ~/.gitconfig-personal
 [credential]
-	helper = store
+  helper = store
 [init]
-	defaultBranch = main
+  defaultBranch = main
 [alias]
-    fixup = "!git add . && git commit --fixup=${1:-$(git rev-parse HEAD)} && GIT_EDITOR=true git rebase --interactive --autosquash ${1:-$(git rev-parse HEAD~2)}~1"
-    cleanup = "!remove-merged-branches-locally" 
-    # the acronym stands for "list file commits"
-    lfc = "!f() { if [ \"$#\" -eq 1 ]; then git log --graph --abbrev-commit --decorate --follow -- $1; else echo 'command requires exactly one argument, which is the name of the file to find commits for'; fi; }; f"
-    # Fancy log
-    lg = log --graph --abbrev-commit --decorate --date=relative --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(bold yellow)%d%C(reset)' --all
-		# the acronym stands for "change data version"
-		cdv = "!f(){ if [ \"$#\" -eq 2 ]; then if [ ! command -v dvc &> /dev/null ]; then git checkout $1 -- $2 && dvc checkout; else echo 'dvc not installed'; fi; else echo 'command requires exactly two arguments, the commit hash, and the filename'; fi; }; f"
-  	# the acronym stands for "subtree add"
-		sba = "!f() { git subtree add --prefix $2 $1 master --squash; }; f"
-  	# the acronym stands for "subtree update"
-  	sbu = "!f() { git subtree pull --prefix $2 $1 master --squash; }; f"
+  # TODO: Move everything into bash scripts and run with "!f(){if [[ command SCRIPT ]]; then !SCRIPT; else echo 'SCRIPT does not exist, make sure to run dotfile initialization first.'; fi;} 
+  fixup = "!git add . && git commit --fixup=${1:-$(git rev-parse HEAD)} && GIT_EDITOR=true git rebase --interactive --autosquash ${1:-$(git rev-parse HEAD~2)}~1"
+  # Cleanup expects a local script called remove-merged-branches-locally to exist.
+  cleanup = "!remove-merged-branches-locally" 
+  # the acronym stands for "list file commits"
+  lfc = "!f() { if [ \"$#\" -eq 1 ]; then git log --graph --abbrev-commit --decorate --follow -- $1; else echo 'command requires exactly one argument, which is the name of the file to find commits for'; fi; }; f"
+  # Fancy log
+  lg = log --graph --abbrev-commit --decorate --date=relative --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(bold yellow)%d%C(reset)' --all
+  # the acronym stands for "change data version"
+  cdv = "!f(){ if [ \"$#\" -eq 2 ]; then if [ ! command -v dvc &> /dev/null ]; then git checkout $1 -- $2 && dvc checkout; else echo 'dvc not installed'; fi; else echo 'command requires exactly two arguments, the commit hash, and the filename'; fi; }; f"
+  # the acronym stands for "subtree add"
+  sba = "!f() { git subtree add --prefix $2 $1 master --squash; }; f"
+  # the acronym stands for "subtree update"
+  sbu = "!f() { git subtree pull --prefix $2 $1 master --squash; }; f"

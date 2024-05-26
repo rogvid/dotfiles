@@ -83,6 +83,10 @@ eval "$(zoxide init zsh)"
 
 # Enable fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+#
+# Load custom fzf configurations
+[ -f $ZSH_CONFIG/.fzf.config ] && . $ZSH_CONFIG/.fzf.config;
+
 
 # Enable pyenv
 eval "$(pyenv init -)"

@@ -10,7 +10,6 @@ unsetopt no_match
 unset EXTRA_PATHS
 EXTRA_PATHS = ()
 
-
 # Set name of the theme to load --- if set to "random", it will
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
@@ -19,6 +18,7 @@ ZSH_THEME=""
 
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
+    fzf-tab
     git
     zsh-autosuggestions
     zsh-syntax-highlighting
@@ -26,6 +26,8 @@ plugins=(
 )
 
 source $ZSH/oh-my-zsh.sh
+
+zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
 
 #Star Ship
 eval "$(starship init zsh)"
@@ -105,3 +107,7 @@ eval "$(pixi completion --shell zsh)"
 
 
 if [ -e /home/flowteller/.nix-profile/etc/profile.d/nix.sh ]; then . /home/flowteller/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
+
+eval "$(atuin init zsh)"
+
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"

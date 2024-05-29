@@ -28,6 +28,7 @@ plugins=(
 source $ZSH/oh-my-zsh.sh
 
 zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
+bindkey '^f' forward-word
 
 #Star Ship
 eval "$(starship init zsh)"
@@ -108,6 +109,7 @@ eval "$(pixi completion --shell zsh)"
 
 if [ -e /home/flowteller/.nix-profile/etc/profile.d/nix.sh ]; then . /home/flowteller/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
 
-eval "$(atuin init zsh)"
+eval "$(atuin init zsh --disable-up-arrow)"
 
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+if [ -f "/home/flowteller/.config/fabric/fabric-bootstrap.inc" ]; then . "/home/flowteller/.config/fabric/fabric-bootstrap.inc"; fi

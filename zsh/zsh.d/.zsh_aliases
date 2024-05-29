@@ -9,3 +9,9 @@ alias vim='nvim'
 alias vi='nvim'
 # alias grep='rg'
 alias ctop='docker run --rm -ti --name=ctop --volume /var/run/docker.sock:/var/run/docker.sock:ro quay.io/vektorlab/ctop:latest'
+# Linux version of OSX pbcopy and pbpaste.
+alias pbcopy='xclip -selection clipboard'
+alias pbpaste='xclip -selection clipboard -o'
+# Create and remove temporary environments
+alias mktmpenv='cd $(mktemp -d --suffix=.tempenv)'
+alias rmtmpenv='find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec rm -rf {} \;'

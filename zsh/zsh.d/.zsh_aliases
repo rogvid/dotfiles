@@ -23,15 +23,14 @@ alias rmtmpenv='find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec rm -
 alias -g -- --help='--help 2>&1 | bat --language=help --style=plain'
 
 # Docker
-if [ -x "$(command -v docker)" ]; then
+if $(command -v -- docker > /dev/null 2>&1); then
   alias dw="watch \"docker ps --format \\\"table {{.Names}}\t{{.Status}}\\\"\""
   alias dwa="watch \"docker ps --format \\\"table {{.Names}}\t{{.Status}}\\\" -a\""
+  if $(command -v -- docker > /dev/null 2>&1); then
+    alias de='docker exec -it $( docker ps --format "{{.Names}}" | fzf --prompt="Choose docker container: " ) bash'
+  else
+    echo "fzf not found on system!";
+  fi
 else
   echo "No docker found on system!";
-fi
-
-if [[ -x "$(command -v fzf)" ]] && [[ -x "$(command -v docker)" ]]; then
-  alias de='docker exec -it $( docker ps --format "{{.Names}}" | fzf --prompt="Choose docker container: " ) bash'
-else
-  echo "Either docker or fzf not found on system!";
 fi

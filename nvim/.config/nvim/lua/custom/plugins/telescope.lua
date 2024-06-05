@@ -69,6 +69,7 @@ return {
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
+      vim.keymap.set('n', '<leader>se', '<cmd>Telescope emoji<CR>', { desc = '[S]earch [E]moji' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
@@ -102,19 +103,5 @@ return {
         builtin.find_files { cwd = vim.fn.stdpath 'config' }
       end, { desc = '[S]earch [N]eovim files' })
     end,
-    extensions = {
-      emoji = {
-        action = function(emoji)
-          -- argument emoji is a table.
-          -- {name="", value="", cagegory="", description=""}
-
-          -- vim.fn.setreg('*', emoji.value)
-          -- print([[Press p or "*p to paste this emoji]] .. emoji.value)
-
-          -- insert emoji when picked
-          vim.api.nvim_put({ emoji.value }, 'c', false, true)
-        end,
-      },
-    },
   },
 }

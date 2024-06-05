@@ -8,6 +8,8 @@
   path = ~/.gitconfig-personal
 [includeif "gitdir:~/"]
   path = ~/.gitconfig-personal
+[includeif "gitdir:/tmp/"]
+  path = ~/.gitconfig-personal
 [credential]
   helper = store
 [init]

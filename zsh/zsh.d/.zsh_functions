@@ -20,3 +20,7 @@ function pathappend() {
   done
   unset extra_path
 }
+
+function bak() {
+  cp -r $1{,.bak}
+}

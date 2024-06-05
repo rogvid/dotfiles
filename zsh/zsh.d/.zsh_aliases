@@ -1,5 +1,7 @@
+#!/bin/bash
+#
 alias lg='lazygit'
-alias cat='batcat'
+alias cat='bat'
 alias ls='eza'
 alias ll='eza -lha'
 alias l='eza -l --icons --git -a'
@@ -15,3 +17,21 @@ alias pbpaste='xclip -selection clipboard -o'
 # Create and remove temporary environments
 alias mktmpenv='cd $(mktemp -d --suffix=.tempenv)'
 alias rmtmpenv='find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec rm -rf {} \;'
+
+# Bat niceness
+# MANPAGER="sh -c 'col -bx | bat -l man -p'"
+alias -g -- --help='--help 2>&1 | bat --language=help --style=plain'
+
+# Docker
+if [ -x "$(command -v docker)" ]; then
+  alias dw="watch \"docker ps --format \\\"table {{.Names}}\t{{.Status}}\\\"\""
+  alias dwa="watch \"docker ps --format \\\"table {{.Names}}\t{{.Status}}\\\" -a\""
+else
+  echo "No docker found on system!";
+fi
+
+if [[ -x "$(command -v fzf)" ]] && [[ -x "$(command -v docker)" ]]; then
+  alias de='docker exec -it $( docker ps --format "{{.Names}}" | fzf --prompt="Choose docker container: " ) bash'
+else
+  echo "Either docker or fzf not found on system!";
+fi

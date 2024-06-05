@@ -25,11 +25,11 @@ return {
         ['<leader>o'] = { name = 'Obsidian', _ = 'which_key_ignore' },
         ['<leader>s'] = { name = 'Search/Find', _ = 'which_key_ignore' },
         ['<leader>t'] = { name = 'Toggle', _ = 'which_key_ignore' },
-        ['<leader>g'] = { name = 'Git', _ = 'which_key_ignore' },
+        ['<leader>h'] = { name = 'Git Hunk', _ = 'which_key_ignore' },
       }
       -- visual mode
       require('which-key').register({
-        ['<leader>h'] = { 'Git [H]unk' },
+        ['<leader>h'] = { 'Git Hunk' },
       }, { mode = 'v' })
     end,
   },

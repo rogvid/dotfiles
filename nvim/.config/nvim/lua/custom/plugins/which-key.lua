@@ -20,8 +20,13 @@ return {
 
       -- Document existing key chains
       require('which-key').register {
+        -- Keys that we don't want to display
+        ['<leader>d'] = 'which_key_ignore',
+        ['<leader><Tab>'] = 'which_key_ignore',
+        ['<leader><space>'] = 'which_key_ignore',
         ['<leader>c'] = { name = 'Coding', _ = 'which_key_ignore' },
         ['<leader>b'] = { name = 'Buffer', _ = 'which_key_ignore' },
+        ['<leader>n'] = { name = 'Neotest', _ = 'which_key_ignore' },
         ['<leader>o'] = { name = 'Obsidian', _ = 'which_key_ignore' },
         ['<leader>s'] = { name = 'Search/Find', _ = 'which_key_ignore' },
         ['<leader>t'] = { name = 'Toggle', _ = 'which_key_ignore' },

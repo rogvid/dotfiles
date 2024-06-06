@@ -1,6 +1,5 @@
 return {
-  -- Add code diagnostics
-  {
+  { -- Add code diagnostics
     'folke/trouble.nvim',
     -- TODO: Update once Trouble has been moved out of beta
     branch = 'dev', -- IMPORTANT!
@@ -39,8 +38,7 @@ return {
     dependencies = { 'nvim-tree/nvim-web-devicons' },
     opts = {}, -- for default options, refer to the configuration section for custom setup.
   },
-  -- Linting
-  {
+  { -- Linting
     'mfussenegger/nvim-lint',
     event = { 'BufReadPre', 'BufNewFile' },
     config = function()
@@ -92,8 +90,7 @@ return {
       })
     end,
   },
-  -- Enable support for navigating within TMUX
-  {
+  { -- Enable support for navigating within TMUX
     'alexghergh/nvim-tmux-navigation',
     config = function()
       local nvim_tmux_nav = require 'nvim-tmux-navigation'
@@ -108,6 +105,50 @@ return {
       vim.keymap.set('n', '<C-l>', nvim_tmux_nav.NvimTmuxNavigateRight)
       -- vim.keymap.set('n', "<C-\\>", nvim_tmux_nav.NvimTmuxNavigateLastActive)
       -- vim.keymap.set('n', "<C-Space>", nvim_tmux_nav.NvimTmuxNavigateNext)
+    end,
+  },
+  { -- Add testing capabilities
+    'nvim-neotest/neotest',
+    dependencies = {
+      'nvim-neotest/nvim-nio',
+      'nvim-lua/plenary.nvim',
+      'mfussenegger/nvim-dap',
+      'antoinemadec/FixCursorHold.nvim',
+      'nvim-treesitter/nvim-treesitter',
+      'nvim-neotest/neotest-python',
+      'nvim-neotest/neotest-plenary',
+      'nvim-neotest/neotest-vim-test',
+    },
+    config = function()
+      require('neotest').setup {
+        adapters = {
+          require 'neotest-python' {
+            dap = { justMyCode = false },
+          },
+          require 'neotest-plenary',
+          require 'neotest-vim-test' {
+            ignore_file_types = { 'python', 'vim', 'lua' },
+          },
+        },
+      }
+      vim.keymap.set('n', '<leader>nr', function()
+        require('neotest').run.run(vim.fn.expand '%')
+      end, { desc = 'Neotest: [r]un current file' })
+      vim.keymap.set('n', '<leader>nw', function()
+        require('neotest').watch.toggle()
+      end, { desc = 'Neotest: toggle [w]atching test' })
+      vim.keymap.set('n', '<leader>no', function()
+        require('neotest').output_panel.toggle()
+      end, { desc = 'Neotest: toggle [o]utput panel' })
+      vim.keymap.set('n', '<leader>nl', function()
+        require('neotest').run.run_last { strategy = 'dap' }
+      end, { desc = 'Neotest: run [l]ast with dap' })
+      vim.keymap.set('n', '<leader>nd', function()
+        require('neotest').run.run { strategy = 'dap' }
+      end, { desc = 'Neotest: [d]ebug the nearest test' })
+      vim.keymap.set('n', '<leader>ns', function()
+        require('neotest').summary.toggle()
+      end, { desc = 'Neotest: toggle test [s]ummary' })
     end,
   },
 }

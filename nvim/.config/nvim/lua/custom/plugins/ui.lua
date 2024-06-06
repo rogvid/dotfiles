@@ -1,17 +1,37 @@
 return {
-  { -- Add minimalist file explorer
-    'nvim-tree/nvim-tree.lua',
-    version = '*',
-    lazy = false,
-    dependencies = {
-      'nvim-tree/nvim-web-devicons',
-    },
+  { -- oil nvim
+    'stevearc/oil.nvim',
+    opts = {},
+    -- Optional dependencies
+    dependencies = { 'nvim-tree/nvim-web-devicons' },
     config = function()
-      require('nvim-tree').setup {}
-      -- vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<CR>', { silent = true })
-      vim.keymap.set('n', '\\', ':NvimTreeToggle<CR>', { silent = true })
+      require('oil').setup {
+        default_file_explorer = true,
+        win_options = {
+          signcolumn = 'yes',
+        },
+        delete_to_trash = true,
+      }
+
+      -- Set key mapping to toggle Oil window using toggle_float
+      vim.keymap.set('n', '\\', function()
+        require('oil').toggle_float '.'
+      end, { noremap = true, silent = true })
     end,
   },
+  -- { -- Add minimalist file explorer
+  --   'nvim-tree/nvim-tree.lua',
+  --   version = '*',
+  --   lazy = false,
+  --   dependencies = {
+  --     'nvim-tree/nvim-web-devicons',
+  --   },
+  --   config = function()
+  --     require('nvim-tree').setup {}
+  --     -- vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<CR>', { silent = true })
+  --     vim.keymap.set('n', '\\', ':NvimTreeToggle<CR>', { silent = true })
+  --   end,
+  -- },
   -- { -- Another option is to use neo-tree instead of nvim-tree
   --   'nvim-neo-tree/neo-tree.nvim',
   --   version = '*',

@@ -21,8 +21,14 @@ ${HOME}/.pulumi/bin
 # Go
 /usr/local/go/bin
 
+# NVM
+${HOME}/.nvm
+
 # NPM
 ${HOME}/.npm-global/bin
 
 # NVIM
 /opt/nvim-linux64/bin
+
+# Brew
+/home/linuxbrew/.linuxbrew/bin

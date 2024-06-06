@@ -21,6 +21,14 @@ function pathappend() {
   unset extra_path
 }
 
+function evalornotify() {
+  if $(command -v -- $1 > /dev/null 2>&1); then
+    eval $2
+  else
+    echo "$1 has not been installed"
+  fi
+}
+
 function bak() {
   cp -r $1{,.bak}
 }

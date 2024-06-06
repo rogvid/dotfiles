@@ -96,7 +96,6 @@ eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
 # Enable direnv
-
 eval "$(direnv hook zsh)"
 
 # Enable navi
@@ -106,10 +105,13 @@ eval "$(navi widget zsh)"
 # Install or update with `curl -fsSL https://pixi.sh/install.sh | bash`
 eval "$(pixi completion --shell zsh)"
 
-
-if [ -e /home/flowteller/.nix-profile/etc/profile.d/nix.sh ]; then . /home/flowteller/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
-
+# Set up atuin
 eval "$(atuin init zsh --disable-up-arrow)"
 
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-if [ -f "/home/flowteller/.config/fabric/fabric-bootstrap.inc" ]; then . "/home/flowteller/.config/fabric/fabric-bootstrap.inc"; fi
+# Set up brew
+eval "$(brew shellenv)"
+
+[ -s /home/flowteller/.nix-profile/etc/profile.d/nix.sh ] && . "/home/flowteller/.nix-profile/etc/profile.d/nix.sh";
+[ -f "$HOME/.config/fabric/fabric-bootstrap.inc" ] && . "$HOME/.config/fabric/fabric-bootstrap.inc";
+[ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh";
+[ -s "$HOME/.nvm/bash_completion" ] && . "$HOME/.nvm/bash_completion";

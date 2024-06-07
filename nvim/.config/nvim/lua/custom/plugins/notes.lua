@@ -1,4 +1,20 @@
 return {
+  { -- Org mode plugin
+    'nvim-neorg/neorg',
+    enabled = false,
+    config = function()
+      require('neorg').setup {}
+    end,
+  },
+
+  { -- Markdown supercharged plugin
+    'jakewvincent/mkdnflow.nvim',
+    enabled = false,
+    config = function()
+      local mkdnflow = require 'mkdnflow'
+      mkdnflow.setup {}
+    end,
+  },
   { -- Obsidian configurations
     'epwalsh/obsidian.nvim',
     version = '*', -- recommended, use latest release instead of latest commit

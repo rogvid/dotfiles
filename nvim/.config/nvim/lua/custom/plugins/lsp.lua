@@ -139,26 +139,26 @@ return {
         --   flags = lsp_flags,
         -- },
         --
-        -- lua_ls = {
-        --   -- cmd = {...},
-        --   -- filetypes = { ...},
-        --   flags = lsp_flags,
-        --   workspace = {
-        --     checkThirdParty = false,
-        --     library = {
-        --       vim.env.VIMRUNTIME,
-        --     },
-        --   },
-        --   settings = {
-        --     Lua = {
-        --       completion = {
-        --         callSnippet = 'Replace',
-        --       },
-        --       -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-        --       diagnostics = { disable = { 'missing-fields' } },
-        --     },
-        --   },
-        -- },
+        lua_ls = {
+          -- cmd = {...},
+          -- filetypes = { ...},
+          flags = lsp_flags,
+          workspace = {
+            checkThirdParty = false,
+            library = {
+              vim.env.VIMRUNTIME,
+            },
+          },
+          settings = {
+            Lua = {
+              -- completion = {
+              --   callSnippet = 'Replace',
+              -- },
+              -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
+              diagnostics = { disable = { 'missing-fields' } },
+            },
+          },
+        },
       }
 
       -- Ensure the servers and tools above are installed
@@ -189,13 +189,6 @@ return {
           end,
         },
       }
-
-      -- TODO: Fix this
-      -- vim.lsp.handlers['textDocument/publishDiagnostics'] = function() end
-      -- vim.lsp.handlers['textDocument/publishDiagnostics'] = vim.lsp.with(vim.lsp.diagnostic.on_publish_diagnostics, {
-      --   -- delay update diagnostics
-      --   update_in_insert = false,
-      -- })
     end,
   },
 }

@@ -23,9 +23,10 @@ return {
         -- Keys that we don't want to display
         ['<leader>d'] = { name = '[d]ebug', t = { name = '[t]est', _ = 'which_key_ignore' } },
         ['<leader><Tab>'] = 'which_key_ignore',
+        ['<leader>e'] = 'which_key_ignore',
         ['<leader><space>'] = 'which_key_ignore',
-        ['<leader>c'] = { name = 'Coding', _ = 'which_key_ignore' },
-        ['<leader>b'] = { name = 'Buffer', _ = 'which_key_ignore' },
+        ['<leader>c'] = { name = '[c]oding', _ = 'which_key_ignore' },
+        ['<leader>b'] = { name = '[b]uffer', _ = 'which_key_ignore' },
         ['<leader>n'] = { name = 'Neotest', _ = 'which_key_ignore' },
         ['<leader>o'] = { name = 'Obsidian', _ = 'which_key_ignore' },
         ['<leader>s'] = { name = 'Search/Find', _ = 'which_key_ignore' },

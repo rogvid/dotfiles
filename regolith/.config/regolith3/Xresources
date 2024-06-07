@@ -3,8 +3,9 @@ regolith.wallpaper.file: /home/flowteller/Pictures/Wallpapers/ilya-ozornin-warha
 regolith.lockscreen.wallpaper.file: /home/flowteller/Pictures/Wallpapers/ilya-ozornin-warhammer-magnus-the-red.jpg
 
 !Window gaps
-wm.gaps.inner.size: 20
-wm.gaps.outer.size: 20
+wm.gaps.smart: false
+wm.gaps.inner.size: 40
+wm.gaps.outer.size: 40
 
 !Workspace names
 wm.workspace.01.name: 1: Coding

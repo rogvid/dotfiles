@@ -144,7 +144,7 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 vim.keymap.set('n', '<leader>bd', '<cmd>bd<CR>', { desc = '[b]uffer [d]elete' })
 vim.keymap.set('n', '<leader>bn', '<cmd>bn<CR>', { desc = '[b]uffer [n]ext' })
 vim.keymap.set('n', '<leader>bp', '<cmd>bp<CR>', { desc = '[b]uffer [p]revious' })
-vim.keymap.set('n', '<leader>be', '<cmd>enew<CR>', { desc = '[b]uffer [e]revious' })
+vim.keymap.set('n', '<leader>be', '<cmd>enew<CR>', { desc = '[b]uffer [e]new' })
 
 -- Make <leader> tab go to previous buffer
 -- vim.keymap.set('n', '<leader><tab>', '<cmd>bprevious<CR>')

@@ -38,10 +38,10 @@ return {
         end, { desc = 'reset git hunk' })
         -- normal mode
         map('n', '<leader>gs', gitsigns.stage_hunk, { desc = '[g]it [s]tage hunk' })
-        map('n', '<leader>gr', gitsigns.reset_hunk, { desc = '[g]it [r]eset hunk' })
+        -- map('n', '<leader>gr', gitsigns.reset_hunk, { desc = '[g]it [r]eset hunk' })
         map('n', '<leader>gS', gitsigns.stage_buffer, { desc = '[g]it [S]tage buffer' })
         map('n', '<leader>gu', gitsigns.undo_stage_hunk, { desc = '[g]it [u]ndo stage hunk' })
-        map('n', '<leader>gR', gitsigns.reset_buffer, { desc = '[g]it [R]eset buffer' })
+        -- map('n', '<leader>gR', gitsigns.reset_buffer, { desc = '[g]it [R]eset buffer' })
         map('n', '<leader>gp', gitsigns.preview_hunk, { desc = '[g]it [p]review hunk' })
         map('n', '<leader>gb', gitsigns.blame_line, { desc = '[g]it [b]lame line' })
         map('n', '<leader>gd', gitsigns.diffthis, { desc = '[g]it [d]iff against index' })
@@ -53,5 +53,29 @@ return {
         map('n', '<leader>gT', gitsigns.toggle_deleted, { desc = '[g]it [T]oggle git show deleted' })
       end,
     },
+  },
+  { -- git-worktree
+    'ThePrimeagen/git-worktree.nvim',
+    dependencies = {
+      'nvim-telescope/telescope.nvim',
+    },
+    config = function()
+      require('git-worktree').setup()
+      -- optional for telescope integration
+      require('telescope').load_extension 'git_worktree'
+
+      vim.keymap.set(
+        'n',
+        '<leader>gr',
+        "<CMD>lua require('telescope').extensions.git_worktree.git_worktrees()<cr>",
+        { desc = '[g]it worktree checkout b[r]anch', silent = true }
+      )
+      vim.keymap.set(
+        'n',
+        '<leader>gC',
+        "<CMD>lua require('telescope').extensions.git_worktree.create_git_worktree()<cr>",
+        { desc = '[g]it worktree [c]reate branch', silent = true }
+      )
+    end,
   },
 }

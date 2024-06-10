@@ -1,0 +1,3 @@
+# Ensure that the screenkey window is always started as a floating window
+# [[for_window]]
+for_window [title="^screenkey"] floating enable

@@ -1,7 +1,2 @@
-# Start iceweasel on workspace 3, then switch back to workspace 1
-# (Being a command-line utility, i3-msg does not support startup notifications,
-#  hence the exec --no-startup-id.)
-# (Starting iceweasel with i3’s exec command is important in order to make i3
-#  create a startup notification context, without which the iceweasel window(s)
-#  cannot be matched onto the workspace on which the command was started.)
 exec --no-startup-id i3-msg 'workspace 1: Code; exec firefox; workspace 3: Chat; exec slack;'
+

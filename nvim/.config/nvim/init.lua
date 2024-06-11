@@ -65,7 +65,7 @@ vim.opt.conceallevel = 1
 
 -- Set <space> as the leader key
 -- See `:help mapleader`
---  INFO: Must happen before plugins are loaded (otherwise wrong leader will be used)
+--  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
@@ -74,7 +74,7 @@ vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
--- INFO: For more options, you can see `:help option-list`
+-- NOTE: For more options, you can see `:help option-list`
 
 -- Make line numbers default
 vim.opt.number = true

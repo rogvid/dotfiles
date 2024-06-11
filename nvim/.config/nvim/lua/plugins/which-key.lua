@@ -29,7 +29,7 @@ return {
         ['<leader>b'] = { name = '[b]uffer', _ = 'which_key_ignore' },
         -- ['<leader>n'] = { name = 'Neotest', _ = 'which_key_ignore' },
         ['<leader>o'] = { name = '[o]bsidian', _ = 'which_key_ignore' },
-        ['<leader>s'] = { name = '[s]earch/find', _ = 'which_key_ignore' },
+        ['<leader>s'] = { name = '[s]earch', _ = 'which_key_ignore' },
         ['<leader>u'] = { name = '[u]i', _ = 'which_key_ignore' },
         ['<leader>g'] = { name = '[g]it', _ = 'which_key_ignore' },
         ['<leader>t'] = { name = '[t]rouble', _ = 'which_key_ignore' },

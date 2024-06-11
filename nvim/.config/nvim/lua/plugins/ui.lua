@@ -41,28 +41,48 @@ return {
       vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<CR>', { silent = true })
     end,
   },
-  -- { -- Another option is to use neo-tree instead of nvim-tree
-  --   'nvim-neo-tree/neo-tree.nvim',
-  --   version = '*',
-  --   dependencies = {
-  --     'nvim-lua/plenary.nvim',
-  --     'nvim-tree/nvim-web-devicons', -- not strictly required, but recommended
-  --     'MunifTanjim/nui.nvim',
-  --   },
-  --   cmd = 'Neotree',
-  --   keys = {
-  --     { '<leader>e', ':Neotree reveal<CR>', { desc = 'NeoTree reveal' } },
-  --   },
-  --   opts = {
-  --     filesystem = {
-  --       window = {
-  --         mappings = {
-  --           ['<leader>e'] = 'close_window',
-  --         },
-  --       },
-  --     },
-  --   },
-  -- },
+  { 'ellisonleao/gruvbox.nvim' },
+  { -- Add the catpuccin colorscheme
+    'catppuccin/nvim',
+    name = 'catppuccin',
+    opts = {
+      integrations = {
+        aerial = true,
+        alpha = true,
+        cmp = true,
+        dashboard = true,
+        flash = true,
+        gitsigns = true,
+        headlines = true,
+        illuminate = true,
+        indent_blankline = { enabled = true },
+        leap = true,
+        lsp_trouble = true,
+        mason = true,
+        markdown = true,
+        mini = true,
+        native_lsp = {
+          enabled = true,
+          underlines = {
+            errors = { 'undercurl' },
+            hints = { 'undercurl' },
+            warnings = { 'undercurl' },
+            information = { 'undercurl' },
+          },
+        },
+        navic = { enabled = true, custom_bg = 'lualine' },
+        neotest = true,
+        neotree = true,
+        noice = true,
+        notify = true,
+        semantic_tokens = true,
+        telescope = true,
+        treesitter = true,
+        treesitter_context = true,
+        which_key = true,
+      },
+    },
+  },
   { -- You can easily change to a different colorscheme.
     -- Change the name of the colorscheme plugin below, and then
     -- change the command in the config to whatever the name of that colorscheme is.

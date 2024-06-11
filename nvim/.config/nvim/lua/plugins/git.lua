@@ -53,6 +53,9 @@ return {
         map('n', '<leader>gT', gitsigns.toggle_deleted, { desc = '[g]it [T]oggle git show deleted' })
       end,
     },
+    config = function(_, opts)
+      require('gitsigns').setup(opts)
+    end,
   },
   { -- git-worktree
     'ThePrimeagen/git-worktree.nvim',

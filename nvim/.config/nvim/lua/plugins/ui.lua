@@ -70,6 +70,13 @@ return {
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
     'folke/tokyonight.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
+    opts = {
+      transparent = true,
+      styles = {
+        sidebars = 'transparent',
+        floats = 'transparent',
+      },
+    },
     init = function()
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
@@ -151,6 +158,17 @@ return {
     -- order to load the plugin when the command is run for the first time
     keys = {
       { '<leader>ug', '<cmd>LazyGit<cr>', desc = '[u]i show lazy[g]it' },
+    },
+  },
+  { -- Enable zen mode
+    'folke/zen-mode.nvim',
+    opts = {
+      -- your configuration comes here
+      -- or leave it empty to use the default settings
+      -- refer to the configuration section below
+    },
+    keys = {
+      { '<leader>uz', '<cmd>ZenMode<cr>', desc = '[u]i toggle [z]en mode' },
     },
   },
 }

@@ -27,16 +27,17 @@ return {
         ['<leader><space>'] = 'which_key_ignore',
         ['<leader>c'] = { name = '[c]oding', _ = 'which_key_ignore' },
         ['<leader>b'] = { name = '[b]uffer', _ = 'which_key_ignore' },
-        ['<leader>n'] = { name = 'Neotest', _ = 'which_key_ignore' },
-        ['<leader>o'] = { name = 'Obsidian', _ = 'which_key_ignore' },
-        ['<leader>s'] = { name = 'Search/Find', _ = 'which_key_ignore' },
-        ['<leader>u'] = { name = 'ui', _ = 'which_key_ignore' },
+        -- ['<leader>n'] = { name = 'Neotest', _ = 'which_key_ignore' },
+        ['<leader>o'] = { name = '[o]bsidian', _ = 'which_key_ignore' },
+        ['<leader>s'] = { name = '[s]earch/find', _ = 'which_key_ignore' },
+        ['<leader>u'] = { name = '[u]i', _ = 'which_key_ignore' },
         ['<leader>g'] = { name = '[g]it', _ = 'which_key_ignore' },
+        ['<leader>t'] = { name = '[t]rouble', _ = 'which_key_ignore' },
       }, { mode = 'n' })
 
       -- visual mode
       require('which-key').register({
-        ['<leader>h'] = { 'Git Hunk' },
+        ['<leader>g'] = { '[g]it' },
       }, { mode = 'v' })
     end,
   },

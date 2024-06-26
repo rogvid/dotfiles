@@ -28,7 +28,6 @@ plugins=(
 source $ZSH/oh-my-zsh.sh
 
 zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
-bindkey '^f' forward-word
 
 #Star Ship
 eval "$(starship init zsh)"

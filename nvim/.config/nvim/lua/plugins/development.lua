@@ -105,4 +105,27 @@ return {
       vim.keymap.set('n', '<C-l>', nvim_tmux_nav.NvimTmuxNavigateRight)
     end,
   },
+  { 'tpope/vim-dadbod', lazy = true },
+  { 'kristijanhusak/vim-dadbod-completion', lazy = true },
+  { -- Add ability to work with databases directly in nvim
+    'kristijanhusak/vim-dadbod-ui',
+    dependencies = {
+      { 'tpope/vim-dadbod', lazy = true },
+      { 'kristijanhusak/vim-dadbod-completion', ft = { 'sql', 'mysql', 'plsql' }, lazy = true },
+    },
+    opts = true,
+    cmd = {
+      'DBUI',
+      'DBUIToggle',
+      'DBUIAddConnection',
+      'DBUIFindBuffer',
+    },
+    config = function()
+      -- Your DBUI configuration
+      vim.g.db_ui_use_nerd_fonts = 1
+    end,
+    keys = {
+      { '<leader>ud', '<cmd>DBUIToggle<cr>', desc = '[u]ser interface for vim-[d]adbod' },
+    },
+  },
 }

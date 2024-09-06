@@ -185,6 +185,7 @@ return {
     -- order to load the plugin when the command is run for the first time
     keys = {
       { '<leader>ug', '<cmd>LazyGit<cr>', desc = '[u]i show lazy[g]it' },
+      { '<leader>gl', '<cmd>LazyGit<cr>', desc = '[g]it toggle [l]azygit' },
     },
   },
   { -- Enable zen mode

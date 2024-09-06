@@ -32,3 +32,9 @@ function evalornotify() {
 function bak() {
   cp -r $1{,.bak}
 }
+
+function plan() {
+  at $2 <<END
+curl -d "$1" ntfy.sh/kvist-notifications
+END
+}

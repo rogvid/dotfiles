@@ -76,12 +76,14 @@ return {
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[s]earch [k]eymaps' })
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[s]earch [f]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[s]earch [s]elect telescope' })
-      vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[s]earch [w]ord' })
+      vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[s]earch [w]ord under cursor' })
       vim.keymap.set('n', '<leader>sl', builtin.live_grep, { desc = '[s]earch by [l]ive grep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[s]earch [d]iagnostics' })
       vim.keymap.set('n', '<leader>sR', builtin.resume, { desc = '[s]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[s]earch recent files ("." for repeat)' })
-      vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[s]earch [b]uffers by filepath' })
+      vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[s]earch [b]uffers by name' })
+      -- Set buffer list to same as search buffer for flexibility
+      vim.keymap.set('n', '<leader>bl', builtin.buffers, { desc = '[b]uffers [l]ist and search' })
 
       -- Slightly advanced example of overriding default behavior and theme
       -- vim.keymap.set('n', '<leader>/', function()

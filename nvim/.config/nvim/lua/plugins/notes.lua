@@ -18,16 +18,16 @@ return {
   { -- Obsidian configurations
     'epwalsh/obsidian.nvim',
     version = '*', -- recommended, use latest release instead of latest commit
-    lazy = false,
+    lazy = true,
     -- lazy = true,
     -- ft = 'markdown',
     -- Replace the above line with this if you only want to load obsidian.nvim for markdown files in your vault:
-    -- event = {
-    --   -- If you want to use the home shortcut '~' here you need to call 'vim.fn.expand'.
-    --   -- E.g. "BufReadPre " .. vim.fn.expand "~" .. "/my-vault/**.md"
-    --   "BufReadPre path/to/my-vault/**.md",
-    --   "BufNewFile path/to/my-vault/**.md",
-    -- },
+    event = {
+      -- If you want to use the home shortcut '~' here you need to call 'vim.fn.expand'.
+      -- E.g. "BufReadPre " .. vim.fn.expand "~" .. "/my-vault/**.md"
+      'BufReadPre ~/work/PKM/Second-brain/**.md',
+      'BufNewFile ~/work/PKM/Second-brain/**.md',
+    },
     dependencies = {
       -- Required.
       'nvim-lua/plenary.nvim',
@@ -46,6 +46,31 @@ return {
           name = 'work',
           path = '~/work/PKM/Second-brain/',
         },
+      },
+
+      templates = {
+        folder = 'resources/templates',
+        date_format = '%Y-%m-%d-%a',
+        time_format = '%H:%M',
+        substitutions = {
+          -- weight = function()
+          --   local inp = vim.fn.input('What is your weight today [kg]?: ', '', '')
+          --   return inp
+          -- end,
+          datetime = function()
+            return os.date('%Y-%m-%d %H:%M', os.time())
+          end,
+        },
+      },
+      daily_notes = {
+        -- Optional, if you keep daily notes in a separate directory.
+        folder = 'areas/journal',
+        -- Optional, if you want to change the date format for the ID of daily notes.
+        date_format = '%Y-%m-%d',
+        -- Optional, default tags to add to each new daily note created.
+        default_tags = { 'daily-notes' },
+        -- Optional, if you want to automatically insert a template from your template directory like 'daily.md'
+        template = 'daily.md',
       },
 
       ui = {
@@ -102,12 +127,17 @@ return {
       {
         '<leader>on',
         '<cmd>ObsidianNew<cr>',
-        desc = 'Create new note',
+        desc = 'create [n]ew note',
       },
       {
         '<leader>of',
         '<cmd>ObsidianSearch<cr>',
-        desc = 'Find note',
+        desc = '[f]ind note',
+      },
+      {
+        '<leader>od',
+        '<cmd>ObsidianToday<cr>',
+        desc = 'create [d]aily note',
       },
     },
     config = function(_, opts)

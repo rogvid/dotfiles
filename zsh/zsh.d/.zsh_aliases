@@ -16,7 +16,7 @@ alias pbcopy='xclip -selection clipboard'
 alias pbpaste='xclip -selection clipboard -o'
 # Create and remove temporary environments
 alias mktmpenv='cd $(mktemp -d --suffix=.tempenv)'
-alias rmtmpenv='find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec rm -rf {} \;'
+alias rmtmpenv='cd ~ && find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec sudo rm -rf {} \;'
 
 # Bat niceness
 # MANPAGER="sh -c 'col -bx | bat -l man -p'"

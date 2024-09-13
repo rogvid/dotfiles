@@ -3,7 +3,7 @@ ${HOME}/.local/bin
 ${HOME}/.cargo/bin
 ${HOME}/.yarn/bin
 
-# Pyenv is deprecated use Pixi instead
+# Pyenv -> use uv instead
 ${HOME}/.pyenv/bin
 
 # Pixi 

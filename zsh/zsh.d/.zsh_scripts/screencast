@@ -4,6 +4,7 @@
 audio_enabled=false
 select_window=false
 select_rectangle=false
+display=${DISPLAY}
 output_file="$(date +%Y-%m-%d_%H-%M_%S).mkv"
 
 # Function to display usage information
@@ -21,6 +22,7 @@ captured too by using the --audio flag."
 	echo "  --audio            Enable audio recording (optional)"
 	echo "  --window           Select a window to record (optional)"
 	echo "  --region           Select a region to record (optional)"
+	echo "  --display          Select a display if you have multiple screens"
 	exit 1
 }
 #
@@ -83,7 +85,7 @@ if $select_window; then
 	WINDOW_ID=$(xdotool selectwindow)
 	read -r X Y W H < <(xdotool getwindowgeometry --shell "$WINDOW_ID" | grep -E 'WIDTH|HEIGHT|X|Y' | sed 's/[A-Z=]//g')
 	GEOMETRY="${W}x${H}"
-	OFFSET="-i :0.0+${X},${Y}"
+	OFFSET="-i ${display}.0+${X},${Y}"
 	# ffmpeg_command+=" $(xwininfo | gawk 'match($0, /-geometry ([0-9]+x[0-9]+).([0-9]+).([0-9]+)/, a)\
 	#      { print "-video_size " a[1] " -i +" a[2] "," a[3] }')"
 elif $select_rectangle; then
@@ -91,7 +93,7 @@ elif $select_rectangle; then
 	read -r X Y W H < <(slop -f "%x %y %w %h")
 	# Format the geometry for ffmpeg
 	GEOMETRY="${W}x${H}"
-	OFFSET="-i :0.0+${X},${Y}"
+	OFFSET="-i ${display}.0+${X},${Y}"
 else
 	# Dynamically get the screen dimensions
 	SCREEN_DIMENSIONS=$(xdpyinfo | grep 'dimensions:' | awk '{print $2}')
@@ -100,7 +102,7 @@ else
 
 	# Use the dynamically determined screen dimensions
 	GEOMETRY="${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
-	OFFSET="-i :0.0"
+	OFFSET="-i ${display}.0"
 fi
 
 ffmpeg_command+=" -video_size ${GEOMETRY} ${OFFSET}"

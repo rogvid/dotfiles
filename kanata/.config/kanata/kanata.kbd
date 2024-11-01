@@ -1,0 +1,30 @@
+;; defsrc is still necessary
+;; defcfg is required for handling processing of unmapped keys
+(defcfg
+  process-unmapped-keys yes
+)
+
+;; defsrc is where we define the keys we want to modify
+(defsrc
+  caps a s d
+)
+;; defvar is how we define variables that can be used 
+;; in other places
+(defvar
+  tap-time 150
+  hold-time 200
+)
+
+;; defalias is the actual remapping
+(defalias
+  escctrl (tap-hold $tap-time $hold-time esc lctl)
+  a (tap-hold $tap-time $hold-time a lmet)
+  s (tap-hold $tap-time $hold-time s lalt)
+  d (tap-hold $tap-time $hold-time d lsft)
+)
+
+;; with deflayer we map the aliases to a respective key
+;; in the order they are defined in defsrc
+(deflayer base
+  @escctrl @a @s @d
+)

@@ -8,7 +8,7 @@ wm.gaps.inner.size: 40
 wm.gaps.outer.size: 40
 
 !Workspace names
-wm.workspace.01.name: 1: Coding
+wm.workspace.01.name: 1: Code
 wm.workspace.02.name: 2: Notes
 wm.workspace.03.name: 3: Chat
 wm.workspace.04.name: 4: Music

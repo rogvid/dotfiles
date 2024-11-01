@@ -114,3 +114,10 @@ eval "$(brew shellenv)"
 [ -f "$HOME/.config/fabric/fabric-bootstrap.inc" ] && . "$HOME/.config/fabric/fabric-bootstrap.inc";
 [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh";
 [ -s "$HOME/.nvm/bash_completion" ] && . "$HOME/.nvm/bash_completion";
+
+# bun completions
+[ -s "/home/flowteller/.local/share/reflex/bun/_bun" ] && source "/home/flowteller/.local/share/reflex/bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.local/share/reflex/bun"
+export PATH="$BUN_INSTALL/bin:$PATH"

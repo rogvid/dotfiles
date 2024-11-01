@@ -25,6 +25,7 @@ return {
         ['<leader><Tab>'] = 'which_key_ignore',
         ['<leader>e'] = 'which_key_ignore',
         ['<leader><space>'] = 'which_key_ignore',
+        ['<leader>a'] = { name = '[a]i', _ = 'which_key_ignore' },
         ['<leader>c'] = { name = '[c]oding', _ = 'which_key_ignore' },
         ['<leader>b'] = { name = '[b]uffer', _ = 'which_key_ignore' },
         -- ['<leader>n'] = { name = 'Neotest', _ = 'which_key_ignore' },

@@ -20,12 +20,20 @@ return {
         },
       }
 
+      local plug = require 'oil'
+
+      -- Enable escaping oil with esc instead
+      vim.keymap.set('n', '<Esc>', function()
+        if vim.w.is_oil_win then
+          plug.close()
+        end
+      end, { noremap = true, silent = true })
+
       -- Set key mapping to toggle Oil window using toggle_float
       vim.keymap.set('n', '\\', function()
-        require('oil').toggle_float '.'
+        plug.toggle_float '.'
       end, { noremap = true, silent = true })
       vim.keymap.set('n', '|', function()
-        local plug = require 'oil'
         plug.toggle_float(plug.get_current_dir())
       end, { noremap = true, silent = true })
     end,

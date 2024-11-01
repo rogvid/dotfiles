@@ -139,6 +139,11 @@ return {
         '<cmd>ObsidianToday<cr>',
         desc = 'create [d]aily note',
       },
+      {
+        '<leader>ot',
+        '<cmd>ObsidianTag<cr>',
+        desc = 'search for [t]ag in vault',
+      },
     },
     config = function(_, opts)
       require('obsidian').setup(opts)

@@ -6,114 +6,157 @@ select_window=false
 select_rectangle=false
 display=${DISPLAY}
 output_file="$(date +%Y-%m-%d_%H-%M_%S).mkv"
+# ==== START NEW
+webcam_enabled=false
+webcam_device="/dev/video0"
+webcam_position="main_w-overlay_w-10:main_h-overlay_h-10"  # positioning it to the right
+# ==== END NEW
 
 # Function to display usage information
 usage() {
-	echo "Record a screencast using ffmpeg. "
-	echo ""
-	echo "This script can be used to record the entire screen.
+    echo "Record a screencast using ffmpeg. "
+    echo ""
+    echo "This script can be used to record the entire screen.
 By default, only video is recorded, but audio can be
 captured too by using the --audio flag."
-	echo ""
-	echo "Usage: screencast [OPTIONS]"
-	echo "Options:"
-	echo "  -h, --help         Display this help message"
-	echo "  -o <output>        Specify the output path (default: ${output_file})"
-	echo "  --audio            Enable audio recording (optional)"
-	echo "  --window           Select a window to record (optional)"
-	echo "  --region           Select a region to record (optional)"
-	echo "  --display          Select a display if you have multiple screens"
-	exit 1
+    echo ""
+    echo "Usage: screencast [OPTIONS]"
+    echo "Options:"
+    echo "  -h, --help         Display this help message"
+    echo "  -o <output>        Specify the output path (default: ${output_file})"
+    echo "  --audio            Enable audio recording (optional)"
+    echo "  --window           Select a window to record (optional)"
+    echo "  --region           Select a region to record (optional)"
+    echo "  --display          Select a display if you have multiple screens"
+# ==== START NEW
+    echo "  --webcam           Add a small webcam capture in the bottom right corner (optional)"
+# ==== END NEW
+    exit 1
 }
-#
+
 # Check if ffmpeg is installed
 if ! command -v ffmpeg &>/dev/null; then
-	echo "ffmpeg could not be found. Please install ffmpeg."
-	exit 1
+    echo "ffmpeg could not be found. Please install ffmpeg."
+    exit 1
 fi
-#
+
 # Check if x11-utils is installed
 if ! command -v xdpyinfo &>/dev/null; then
-	echo "xdpyinfo could not be found. Please install x11-utils."
-	exit 1
+    echo "xdpyinfo could not be found. Please install x11-utils."
+    exit 1
 fi
 
 # Check if slop is installed only if --select option is used
 if ! command -v slop &>/dev/null; then
-	echo "slop could not be found. Please install slop to use the --region option."
-	exit 1
+    echo "slop could not be found. Please install slop to use the --region option."
+    exit 1
 fi
+
+# ==== START NEW
+# Check if v4l2-utils is installed
+if ! command -v v4l2-ctl &>/dev/null; then
+    echo "v4l2-ctl could not be found. Please install v4l2-utils to use the --webcam option."
+    exit 1
+fi
+# ==== END NEW
 
 # Parse command-line options
 while [[ $# -gt 0 ]]; do
-	case "$1" in
-	--audio)
-		audio_enabled=true
-		shift
-		;;
-	-o)
-		if [[ $# -gt 1 ]]; then
-			output_file="$2"
-			shift 2
-		else
-			echo "Error: Missing argument for -o option."
-			usage
-		fi
-		;;
-	--window)
-		select_window=true
-		shift
-		;;
-	--region)
-		select_rectangle=true
-		shift
-		;;
-	-h | --help)
-		usage
-		;;
-	*)
-		echo "Unknown option: $1"
-		usage
-		;;
-	esac
+    case "$1" in
+    --audio)
+        audio_enabled=true
+        shift
+        ;;
+    -o)
+        if [[ $# -gt 1 ]]; then
+            output_file="$2"
+            shift 2
+        else
+            echo "Error: Missing argument for -o option."
+            usage
+        fi
+        ;;
+    --window)
+        select_window=true
+        shift
+        ;;
+    --region)
+        select_rectangle=true
+        shift
+        ;;
+# ==== START NEW
+    --webcam)
+        webcam_enabled=true
+        shift
+        ;;
+# ==== END NEW
+    -h | --help)
+        usage
+        ;;
+    *)
+        echo "Unknown option: $1"
+        usage
+        ;;
+    esac
 done
 
 # Prepare the ffmpeg command
-ffmpeg_command="ffmpeg -f x11grab -r 25"
+base_ffmpeg_command="ffmpeg -f x11grab -r 25 -thread_queue_size 64"
 
 if $select_window; then
-	WINDOW_ID=$(xdotool selectwindow)
-	read -r X Y W H < <(xdotool getwindowgeometry --shell "$WINDOW_ID" | grep -E 'WIDTH|HEIGHT|X|Y' | sed 's/[A-Z=]//g')
-	GEOMETRY="${W}x${H}"
-	OFFSET="-i ${display}.0+${X},${Y}"
-	# ffmpeg_command+=" $(xwininfo | gawk 'match($0, /-geometry ([0-9]+x[0-9]+).([0-9]+).([0-9]+)/, a)\
-	#      { print "-video_size " a[1] " -i +" a[2] "," a[3] }')"
+    WINDOW_ID=$(xdotool selectwindow)
+    read -r X Y W H < <(xdotool getwindowgeometry --shell "$WINDOW_ID" | grep -E 'WIDTH|HEIGHT|X|Y' | sed 's/[A-Z=]//g')
+    GEOMETRY="${W}x${H}"
+    OFFSET="-i ${display}.0+${X},${Y}"
+    # base_ffmpeg_command+=" $(xwininfo | gawk 'match($0, /-geometry ([0-9]+x[0-9]+).([0-9]+).([0-9]+)/, a)\
+    #      { print "-video_size " a[1] " -i +" a[2] "," a[3] }')"
 elif $select_rectangle; then
-	# Use slop to select the area and store the geometry in a variable
-	read -r X Y W H < <(slop -f "%x %y %w %h")
-	# Format the geometry for ffmpeg
-	GEOMETRY="${W}x${H}"
-	OFFSET="-i ${display}.0+${X},${Y}"
+    # Use slop to select the area and store the geometry in a variable
+    read -r X Y W H < <(slop -f "%x %y %w %h")
+    # Format the geometry for ffmpeg
+    GEOMETRY="${W}x${H}"
+    OFFSET="-i ${display}.0+${X},${Y}"
 else
-	# Dynamically get the screen dimensions
-	SCREEN_DIMENSIONS=$(xdpyinfo | grep 'dimensions:' | awk '{print $2}')
-	SCREEN_WIDTH=$(echo "${SCREEN_DIMENSIONS}" | cut -dx -f1)
-	SCREEN_HEIGHT=$(echo "${SCREEN_DIMENSIONS}" | cut -dx -f2)
+    # Dynamically get the screen dimensions
+    SCREEN_DIMENSIONS=$(xdpyinfo | grep 'dimensions:' | awk '{print $2}')
+    SCREEN_WIDTH=$(echo "${SCREEN_DIMENSIONS}" | cut -dx -f1)
+    SCREEN_HEIGHT=$(echo "${SCREEN_DIMENSIONS}" | cut -dx -f2)
 
-	# Use the dynamically determined screen dimensions
-	GEOMETRY="${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
-	OFFSET="-i ${display}.0"
+    # Use the dynamically determined screen dimensions
+    GEOMETRY="${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
+    OFFSET="-i ${display}.0"
 fi
 
-ffmpeg_command+=" -video_size ${GEOMETRY} ${OFFSET}"
+base_ffmpeg_command+=" -video_size ${GEOMETRY} ${OFFSET}"
 
 if $audio_enabled; then
-	ffmpeg_command+=" -f alsa -ac 2 -i pulse"
+    base_ffmpeg_command+=" -f alsa -r 25 -thread_queue_size 64 -ac 2 -i pulse"
 fi
 
-ffmpeg_command+=" -vcodec libx264 -crf 0 -preset ultrafast -acodec pcm_s16le -threads 0 $output_file"
+# ==== START NEW
+if $webcam_enabled; then
+    webcam_command="-f v4l2 -thread_queue_size 1024 -i ${webcam_device}"
+    radius=$(( SCREEN_HEIGHT / 5 ))  # 20% of the height
+    filter_complex_args="[2:v]format=rgba,crop=ih:ih,geq=r='r(X,Y)':a='if(lte(sqrt(pow(W/2-X\,2)+pow(H/2-Y\,2))\,$radius)\,255\,0)'[webcam];[0:v][webcam]overlay=${webcam_position}"
+fi
+# ==== END NEW
 
-# Run the ffmpeg command
+# Update the ffmpeg command based on whether webcam is enabled
+if $webcam_enabled; then
+    if $audio_enabled; then
+        # use 3 streams: x11, alsa, and webcam
+        ffmpeg_command="$base_ffmpeg_command -filter_complex \"$filter_complex_args\" $webcam_command"
+    else
+        # use 2 streams: x11 and webcam
+        ffmpeg_command="$base_ffmpeg_command -filter_complex \"$filter_complex_args\" $webcam_command"
+    fi
+else
+    ffmpeg_command="$base_ffmpeg_command"
+fi
+
+ffmpeg_command+=" -flush_packets 1 -fflags nobuffer -vcodec libx264 -crf 0 -preset ultrafast -acodec pcm_s16le -threads 0 -fflags +genpts -async 1 $output_file"
+
+# Run the ffmpeg command and ensure all streams are finished capturing before closing
 echo "Running the following command:"
 echo "$ffmpeg_command"
 eval "$ffmpeg_command"

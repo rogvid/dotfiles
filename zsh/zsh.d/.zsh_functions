@@ -34,7 +34,22 @@ function bak() {
 }
 
 function plan() {
-  at $2 <<END
-curl -d "$1" ntfy.sh/kvist-notifications
-END
+  if [ "$1" = "-h"  -o "$1" = "--help" ]     # Request help.
+  then
+    echo; 
+    echo "Usage: $0 \"Your message\" \"Time for notification\" [\"Optional custom channel\"]";
+    echo;
+    echo "Examples:";
+    echo "plan \"Good morning\" \"At: tomorrow, 10am\"";
+    echo "plan \"It's 30 minutes later now\" \"In: 30min\"";
+    echo "plan \"Unix timestamps are awesome!\" \"Delay: 1639194738\"";
+    echo;
+  else
+    channel=${3:-kvist-notifications}
+    curl -H "$2" -d "$1" "ntfy.sh/${channel}"
+  fi
+  #   at $2 <<END
+  # curl -d "$1" ntfy.sh/kvist-notifications
+  # END
 }
+

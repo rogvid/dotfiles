@@ -6,7 +6,7 @@
 
 ;; defsrc is where we define the keys we want to modify
 (defsrc
-  caps a s d
+  caps a s d k
 )
 ;; defvar is how we define variables that can be used 
 ;; in other places
@@ -21,10 +21,11 @@
   a (tap-hold $tap-time $hold-time a lmet)
   s (tap-hold $tap-time $hold-time s lalt)
   d (tap-hold $tap-time $hold-time d lsft)
+  k (tap-hold $tap-time $hold-time k rsft)
 )
 
 ;; with deflayer we map the aliases to a respective key
 ;; in the order they are defined in defsrc
 (deflayer base
-  @escctrl @a @s @d
+  @escctrl @a @s @d @k
 )

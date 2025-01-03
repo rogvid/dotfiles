@@ -1,8 +1,6 @@
-[includeif "gitdir:~/work/Flowtale/"]
+[includeif "gitdir:~/work/flowtale/"]
   path = ~/.gitconfig-flowtale
-[includeif "gitdir:~/work/Teledyne/"]
-  path = ~/.gitconfig-teledyne
-[includeif "gitdir:~/work/Kvist/"]
+[includeif "gitdir:~/work/kvist/"]
   path = ~/.gitconfig-kvist
 [includeif "gitdir:~/personal/"]
   path = ~/.gitconfig-personal
@@ -32,7 +30,7 @@
   # Clone a bare repository
   bare = clone --bare
 [filter "lfs"]
-	clean = git-lfs clean -- %f
-	smudge = git-lfs smudge -- %f
-	process = git-lfs filter-process
-	required = true
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+  process = git-lfs filter-process
+  required = true

@@ -33,23 +33,70 @@ function bak() {
   cp -r $1{,.bak}
 }
 
-function plan() {
-  if [ "$1" = "-h"  -o "$1" = "--help" ]     # Request help.
-  then
-    echo; 
-    echo "Usage: $0 \"Your message\" \"Time for notification\" [\"Optional custom channel\"]";
-    echo;
-    echo "Examples:";
-    echo "plan \"Good morning\" \"At: tomorrow, 10am\"";
-    echo "plan \"It's 30 minutes later now\" \"In: 30min\"";
-    echo "plan \"Unix timestamps are awesome!\" \"Delay: 1639194738\"";
-    echo;
-  else
-    channel=${3:-kvist-notifications}
-    curl -H "$2" -d "$1" "ntfy.sh/${channel}"
-  fi
-  #   at $2 <<END
-  # curl -d "$1" ntfy.sh/kvist-notifications
-  # END
+notify() {
+    # Check if there are enough arguments
+    if [ "$#" -lt 2 ]; then
+        echo "USAGE:"
+        echo "    notify <curl_options> <time>"
+        echo "EXAMPLES:" 
+        echo "    notify -H 'Title: Alert!' -H 'Attach: Image.jpg' -d 'This was detected' now"
+        echo '    notify
+                    -H "Title: Unauthorized access detected" 
+                    -H "Priority: urgent" 
+                    -H "Tags: warning,skull" 
+                    -d "Remote access to phils-laptop detected. Act right away." 
+                    now
+        '
+        return 1
+    fi
+
+    # Extract the time (last argument)
+    local time="${@: -1}"
+
+    # Extract the curl command options (all but the last argument)
+    local curl_options=("${@:1:$#-1}")
+
+    # Generate a temporary script for the curl command
+    local tmp_script
+    tmp_script=$(mktemp)
+
+    # Write the curl command with options to the temporary script
+    echo "curl ${curl_options[*]} ntfy.sh/kvist-notifications" > "$tmp_script"
+
+    # Schedule the command using 'at'
+    at "$time" < "$tmp_script" 2>/dev/null
+
+    # Check if the scheduling was successful
+    if [ "$?" -eq 0 ]; then
+        echo "Curl command scheduled to run at $time."
+    else
+        echo "Failed to schedule curl command."
+    fi
+
+    # Clean up the temporary script
+    rm "$tmp_script"
 }
+
+# function notify() {
+#   local COUNT="$#"
+#   local COMMAND="$1"
+#   local MESSAGE="$1"
+#   local TIME="$2"
+#   if [[ $COUNT -eq 0 || "$COMMAND" == "help" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ]]; then
+#     echo; 
+#     echo "USAGE:"
+#     echo "    notify <message> <time> [<channel>]";
+#     echo;
+#     echo "EXAMPLES:";
+#     echo '    notify "Good morning" "At: tomorrow, 10am"';
+#     echo '    notify "Its 30 minutes later now" "In: 30min"';
+#     echo '    notify "Unix timestamps are awesome!" "Delay: 1639194738"';
+#     echo;
+#   else
+#     channel=${3:-kvist-notifications}
+#     echo 'curl -H "$2" -d "$1" "ntfy.sh/${channel}' | at $TIME
+#     echo "Notification scheduled with NTFY at $TIME"
+#   fi
+# }
+
 

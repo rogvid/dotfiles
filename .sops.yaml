@@ -1,0 +1,11 @@
+keys:
+  - &users:
+    - &ta age1l2827ugpf0ealc8rzuxq85ncyerzmfcqt2argrl5500h8aw5auaqruvmpp
+  - &hosts:
+    - &flowteller age1rjcjqmpxvtgn0fqq6ertdzt2crw26dae7nx6r6dkca2vfzfxm3dqw9xrql
+creation_rules:
+  - path_regex: secrets.yaml$
+    key_groups:
+    - age:
+      - *ta
+      - *flowteller

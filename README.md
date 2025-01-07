@@ -12,7 +12,7 @@ Before setting up a new dev environment make sure the following is present:
 The recommended setup is to run the init script from git:
 
 ```bash
-curl -Lks github.com/rogvid/.dotfiles/init.sh | /bin/bash
+curl -Lks github.com/rogvid/dotfiles/setup.sh | /bin/bash
 ```
 
 When this is done, install the tools below following their respective guides.

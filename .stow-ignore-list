@@ -22,5 +22,9 @@ _darcs
 ^/COPYING
 ^/TODO.*
 
+# Ignore scripts directory
+./scripts/
+./kanata/
+
 # Ignore initialization script
-init.sh
+setup.sh

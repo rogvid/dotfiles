@@ -2,7 +2,6 @@
 #
 alias lg='lazygit'
 alias cat='bat'
-alias ls='eza'
 alias ll='eza -lha'
 alias l='eza -l --icons --git -a'
 alias lt='eza --tree --level=2 --long --icons --git'
@@ -17,6 +16,7 @@ alias pbpaste='xclip -selection clipboard -o'
 # Create and remove temporary environments
 alias mktmpenv='cd $(mktemp -d --suffix=.tempenv)'
 alias rmtmpenv='cd ~ && find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec sudo rm -rf {} \;'
+alias scripts='eza -l --icons --git -a ~/.local/scripts/'
 
 # Bat niceness
 # MANPAGER="sh -c 'col -bx | bat -l man -p'"

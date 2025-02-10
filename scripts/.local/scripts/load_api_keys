@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+unlock_bw_if_locked() {
+  if [[ -z $BW_SESSION ]]; then
+    echo 'bw locked - unlocking into a new session'
+    bw_session="$(bw unlock --raw)"
+    export BW_SESSION="$bw_session"
+  fi
+}
+
+lock_bw_if_unlocked() {
+  if [[ -n "$BW_SESSION" ]]; then
+    bw lock
+    unset BW_SESSION
+  fi
+}
+
+load_api_keys() {
+  unlock_bw_if_locked
+
+  for arg in "$@"; do
+    # Extract the part before '=' as key
+    key="${arg%%=*}"
+    #
+    # Extract the part after '=' as value
+    value="${arg#*=}"
+
+    count=$(bw list items --pretty | jq -r '[.[] | select(.name=="'"$value"'")] | length')
+
+    if [[ "$count" -gt 1 ]]; then
+      echo "Multiple entries with the name $1 exist in bitwarden!"
+      return 1
+    elif [[ "$count" -lt 1 ]]; then
+      echo "No entries with the name $1 exist in bitwarden!"
+      return 1
+    fi
+
+    pwd=$(bw list items --pretty | jq -r '.[] | select(.name=="'"$value"'") | .login.password')
+    export "$key=$pwd"
+  done
+
+  # github_token="$(bw get notes $github_pat_id)"
+  # export GITHUB_OAUTH_TOKEN="$github_token"
+  # export GITHUB_TOKEN="$github_token"
+  # export GIT_TOKEN="$github_token"
+  lock_bw_if_unlocked
+}
+
+load_api_keys "$@"

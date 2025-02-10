@@ -1,19 +1,11 @@
 # Basic paths
 ${HOME}/.local/bin
+${HOME}/.local/scripts
 ${HOME}/.cargo/bin
 ${HOME}/.yarn/bin
 
-# Pyenv -> use uv instead
-${HOME}/.pyenv/bin
-
-# Pixi 
-${HOME}/.pixi/bin
-
 # Applications
 ${HOME}/Applications
-
-# Pulumi
-${HOME}/.pulumi/bin
 
 # mssql
 /opt/mssql-tools/bin
@@ -24,11 +16,5 @@ ${HOME}/.pulumi/bin
 # NVM
 ${HOME}/.nvm
 
-# NPM
-${HOME}/.npm-global/bin
-
 # NVIM
 /opt/nvim-linux64/bin
-
-# Brew
-/home/linuxbrew/.linuxbrew/bin

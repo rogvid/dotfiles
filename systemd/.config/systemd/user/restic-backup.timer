@@ -1,0 +1,17 @@
+###################################################
+# restic-backup.timer - runs restic backup each day
+# loginctl enable-linger vedran
+# systemctl --user list-timers
+# systemctl --user enable restic-backup.timer
+# systemctl --user start restic-backup.timer
+
+[Unit]
+Description=Regular restic backup
+
+[Timer]
+Unit=restic-backup.service
+OnCalendar= *-*-* 18:00:00
+Persistent=true
+
+[Install]
+WantedBy=default.target

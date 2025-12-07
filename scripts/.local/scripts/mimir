@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Check required commands
+if ! command -v bwrap &>/dev/null; then
+  echo "Error: bwrap (bubblewrap) is not installed" >&2
+  exit 1
+fi
+
+# Detect NODE_PATH if not set
+if [[ -z "${NODE_PATH:-}" ]]; then
+  if ! command -v node &>/dev/null; then
+    echo "Error: node is not installed or not in PATH" >&2
+    exit 1
+  fi
+
+  # Get the directory containing the node binary
+  node_binary="$(command -v node)"
+  # Resolve symlinks to get the actual node installation
+  node_binary="$(readlink -f "$node_binary")"
+  # Get the base directory (e.g., /home/user/.nvm/versions/node/v24.2.0)
+  NODE_PATH="$(dirname "$(dirname "$node_binary")")"
+fi
+
+# Verify NODE_PATH is a valid directory
+if [[ ! -d "$NODE_PATH" ]]; then
+  echo "Error: NODE_PATH '$NODE_PATH' is not a valid directory" >&2
+  exit 1
+fi
+
+# Check required paths
+if [[ ! -d "$HOME/.opencode" ]]; then
+  echo "Error: $HOME/.opencode directory does not exist" >&2
+  exit 1
+fi
+
+# Detect Bun path
+BUN_PATH=""
+if [[ -d "$HOME/.opencode/.bun" ]]; then
+  BUN_PATH="$HOME/.opencode/.bun"
+elif command -v bun &>/dev/null; then
+  bun_binary="$(command -v bun)"
+  bun_binary="$(readlink -f "$bun_binary")"
+  BUN_PATH="$(dirname "$(dirname "$bun_binary")")"
+fi
+
+# Build bwrap command with optional Bun binding
+bwrap_args=(
+  --ro-bind /usr /usr
+  --ro-bind /etc /etc
+  --ro-bind /run /run
+  --ro-bind /sys /sys
+  --ro-bind "$NODE_PATH" /node
+  --proc /proc
+  --dev /dev
+  --dev-bind /dev/null /dev/null
+  --symlink usr/lib64 /lib64
+  --symlink usr/lib /lib
+  --tmpfs /tmp
+  --unshare-user
+  --unshare-ipc
+  --unshare-pid
+  --unshare-uts
+  --unshare-cgroup
+  --die-with-parent
+  --new-session
+  --ro-bind "$HOME/.opencode" /opencode
+  --bind "$HOME/.config/opencode" /opencode/.config/opencode
+  --bind "$HOME/.local/share/opencode" /opencode/.local/share/opencode
+  --bind "$HOME/.cache/opencode" /opencode/.cache/opencode
+  --setenv HOME /opencode
+  --setenv SSL_CERT_FILE /etc/ssl/certs/ca-certificates.crt
+  --setenv SSL_CERT_DIR /etc/ssl/certs
+  --setenv NODE_EXTRA_CA_CERTS /etc/ssl/certs/ca-certificates.crt
+)
+
+# Bind /mnt if it exists (needed for WSL DNS resolution)
+if [[ -d /mnt/wsl ]]; then
+  bwrap_args+=(--ro-bind /mnt/wsl /mnt/wsl)
+fi
+
+# Symlink Playwright browser cache into opencode cache (needed for Playwright MCP)
+# This makes the browsers accessible via the already-bound /opencode/.cache/opencode
+if [[ -d "$HOME/.cache/ms-playwright" ]]; then
+  if [[ ! -e "$HOME/.cache/opencode/ms-playwright" ]]; then
+    ln -sf "$HOME/.cache/ms-playwright" "$HOME/.cache/opencode/ms-playwright"
+  fi
+fi
+
+# Add Bun to the path if available
+if [[ -n "$BUN_PATH" ]]; then
+  bwrap_args+=(
+    --ro-bind "$BUN_PATH" /bun
+    --setenv PATH "/node/bin:/bun/bin:/opencode/bin:/usr/bin"
+  )
+else
+  bwrap_args+=(
+    --setenv PATH "/node/bin:/opencode/bin:/usr/bin"
+  )
+fi
+
+bwrap_args+=(
+  --bind "$(pwd)" /work
+  --chdir /work
+  /opencode/bin/opencode "$@"
+)
+
+bwrap "${bwrap_args[@]}"

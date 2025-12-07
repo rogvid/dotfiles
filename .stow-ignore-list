@@ -24,7 +24,8 @@ _darcs
 
 # Ignore scripts directory
 ./scripts/
-./kanata/
+./applications/
+./packages/
 
 # Ignore initialization script
 setup.sh

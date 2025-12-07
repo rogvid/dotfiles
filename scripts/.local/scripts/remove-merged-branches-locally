@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Check if
+# Check if ripgrep exists
 [ command -v rg ] &>/dev/null && echo "Command expects ripgrep to be installed" && return 1
 git branch --merged | rg -v '(^\*|master|main|dev)' >/tmp/merged-branches && vi /tmp/merged-branches && xargs git branch -d </tmp/merged-branches
+# Prune tracking of remote branches that don't exist anymore
+git remote prune origin
 # Maybe swap with this:
 # git fetch -p ; git branch -r | awk '{print $1}' | egrep -v -f /dev/fd/0 <(git branch -vv | grep origin) | awk '{print $1}' | xargs git branch -d

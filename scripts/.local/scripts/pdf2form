@@ -1,0 +1,34 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "commonforms",
+#   "loguru>=0.7.3",
+# ]
+# ///
+from commonforms import prepare_form
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="PDF to form converter based on commonforms"
+    )
+
+    parser.add_argument(
+        "input",
+        type=str,
+        help="Path to the input PDF file",
+    )
+    parser.add_argument(
+        "output",
+        type=str,
+        help="Path to the output form file",
+    )
+
+    args = parser.parse_args()
+
+    prepare_form(args.input, args.output)
+    print(f"Successfully converted input PDF `{args.input}` to form at `{args.output}`.")
+
+if __name__ == "__main__":
+    main()

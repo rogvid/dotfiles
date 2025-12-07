@@ -1,0 +1,15 @@
+#!/bin/bash
+set -eu
+
+restic backup \
+  -r ~/restic-repo \
+  --exclude-caches \
+  --files-from $(dirname $0)/restic-include \
+  --exclude-file $(dirname $0)/restic-exclude \
+  --password-file $(dirname $0)/restic-password
+
+restic backup \
+  -r /media/rogvidarge/T7/restic-ft-backup \
+  --password-file 
+  --verbose backup ~/personal
+restic backup -r /media/rogvidarge/T7/restic-ft-backup --verbose backup ~/work

@@ -16,21 +16,24 @@ EXTRA_PATHS = ()
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
 ZSH_THEME=""
 
+# Load identities
+
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
     fzf-tab
     git
+    ssh-agent
     zsh-autosuggestions
     zsh-syntax-highlighting
     you-should-use
 )
 
-source $ZSH/oh-my-zsh.sh
-
+# plugin configurations
+zstyle :omz:plugins:ssh-agent identities id_ed25519_flowtale id_ed25519_personal
 zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
 
-#Star Ship
-eval "$(starship init zsh)"
+source $ZSH/oh-my-zsh.sh
+
 
 # User configuration
 
@@ -89,35 +92,34 @@ eval "$(zoxide init zsh)"
 # Load custom fzf configurations
 [ -f $ZSH_CONFIG/.fzf.config ] && . $ZSH_CONFIG/.fzf.config;
 
-
-# Enable pyenv
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+#Star Ship
+eval "$(starship init zsh)"
 
 # Enable direnv
 eval "$(direnv hook zsh)"
 
-# Enable navi
-eval "$(navi widget zsh)"
-
-# Setting up pixi
-# Install or update with `curl -fsSL https://pixi.sh/install.sh | bash`
-eval "$(pixi completion --shell zsh)"
-
 # Set up atuin
 eval "$(atuin init zsh --disable-up-arrow)"
 
-# Set up brew
-eval "$(brew shellenv)"
+# Generated for envman. Do not edit.
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
-[ -s /home/flowteller/.nix-profile/etc/profile.d/nix.sh ] && . "/home/flowteller/.nix-profile/etc/profile.d/nix.sh";
-[ -f "$HOME/.config/fabric/fabric-bootstrap.inc" ] && . "$HOME/.config/fabric/fabric-bootstrap.inc";
-[ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh";
-[ -s "$HOME/.nvm/bash_completion" ] && . "$HOME/.nvm/bash_completion";
+. "$HOME/.atuin/bin/env"
 
-# bun completions
-[ -s "/home/flowteller/.local/share/reflex/bun/_bun" ] && source "/home/flowteller/.local/share/reflex/bun/_bun"
+. "$HOME/.local/bin/env"
 
-# bun
-export BUN_INSTALL="$HOME/.local/share/reflex/bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+if [[ $(grep -i Microsoft /proc/version) ]]; then
+  echo "In WSL"
+  export ZED_ALLOW_EMULATED_GPU=1
+  alias zed="WAYLAND_DISPLAY='' zed"
+fi
+
+# Activate mise
+eval "$(~/.local/bin/mise activate zsh)"
+
+# opencode
+export PATH=/home/kvist/.opencode/bin:$PATH

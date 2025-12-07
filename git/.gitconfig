@@ -28,8 +28,15 @@
   sbu = "!f() { git subtree pull --prefix $2 $1 master --squash; }; f"
   # Clone a bare repository
   bare = clone --bare
+  # fancydiff
+  diffz = "!diffzf"
 [filter "lfs"]
   clean = git-lfs clean -- %f
   smudge = git-lfs smudge -- %f
   process = git-lfs filter-process
   required = true
+[rebase]
+  autoStash = true
+  updateRefs = true
+[merge]
+  conflictstyle = diff3

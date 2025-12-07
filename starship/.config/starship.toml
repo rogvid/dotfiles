@@ -6,6 +6,7 @@ palette = "catppuccin_mocha"
 # move the rest of the prompt to the right
 right_format = """$all"""
 
+
 [battery]
 full_symbol = "🔋"
 charging_symbol = "⚡️"
@@ -16,6 +17,10 @@ threshold = 50
 
 [docker_context]
 disabled = true
+
+[nix_shell]
+format = "[$state($name)](bold blue)"
+disabled = false
 
 [aws]
 format = ""

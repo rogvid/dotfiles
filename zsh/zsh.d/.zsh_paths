@@ -5,16 +5,10 @@ ${HOME}/.cargo/bin
 ${HOME}/.yarn/bin
 
 # Applications
-${HOME}/Applications
-
-# mssql
-/opt/mssql-tools/bin
-
-# Go
-/usr/local/go/bin
+${HOME}/applications
 
 # NVM
 ${HOME}/.nvm
 
-# NVIM
-/opt/nvim-linux64/bin
+# Opencode
+${HOME}/.opencode/bin

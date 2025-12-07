@@ -1,0 +1,10 @@
+##########################################################################
+# restic-backup.service - runs restic backup (used by restic-backup.timer)
+# systemctl --user status restic-backup
+
+[Unit]
+Description=Restic backup
+
+[Service]
+Type=oneshot
+ExecStart=$HOME/.config/systemd/user/restic-backup.sh

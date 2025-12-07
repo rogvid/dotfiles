@@ -2,4 +2,4 @@
   email = rogvidarge@gmail.com
   name = Rogvi David Arge
 [core]
-  sshCommand = ssh -i ~/.ssh/id_git_personal
+  sshCommand = ssh -o IdentitiesOnly=yes -i ~/.ssh/id_git_personal

@@ -29,7 +29,7 @@ plugins=(
 )
 
 # plugin configurations
-zstyle :omz:plugins:ssh-agent identities id_ed25519_flowtale id_ed25519_personal
+zstyle :omz:plugins:ssh-agent identities id_ed25519_flowtale id_ed25519_personal id_git_personal
 zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
 
 source $ZSH/oh-my-zsh.sh
@@ -121,5 +121,3 @@ fi
 # Activate mise
 eval "$(~/.local/bin/mise activate zsh)"
 
-# opencode
-export PATH=/home/kvist/.opencode/bin:$PATH

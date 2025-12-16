@@ -817,17 +817,83 @@ class DotfilesSetupApp(App):
         self.query_one(TabbedContent).active = "tab_log"
 
 
+def detect_dotfiles_repo() -> Path | None:
+    """
+    Detect the dotfiles repository location.
+    
+    Returns:
+        Path to dotfiles repo if found, None otherwise.
+    
+    Detection logic:
+    1. Check if we're currently inside a dotfiles repo (look for dotfiles-setup script)
+    2. Check ~/dotfiles if exists
+    3. Return None to trigger clone prompt
+    """
+    # Check if we're running from within the dotfiles repository
+    current_dir = Path.cwd()
+    
+    # Look for markers that indicate this is the dotfiles repo
+    markers = [
+        "dotfiles-setup",  # This script itself
+        ".stow-ignore-list",  # Common dotfiles marker
+        "setup.sh",  # Common dotfiles marker
+    ]
+    
+    # Check current directory and up to 2 parent directories
+    check_dir = current_dir
+    for _ in range(3):
+        for marker in markers:
+            if (check_dir / marker).exists():
+                # Verify it looks like a dotfiles repo
+                if (check_dir / "applications").is_dir() or any(
+                    d.is_dir() and not d.name.startswith(".")
+                    for d in check_dir.iterdir()
+                ):
+                    return check_dir
+        check_dir = check_dir.parent
+        if check_dir == check_dir.parent:  # Reached root
+            break
+    
+    # Check ~/dotfiles as fallback
+    home_dotfiles = Path.home() / "dotfiles"
+    if home_dotfiles.exists() and home_dotfiles.is_dir():
+        return home_dotfiles
+    
+    return None
+
+
 def main():
     """Main entry point."""
-    dotfiles_path = Path.home() / "dotfiles"
-
-    if not dotfiles_path.exists():
-        print("Error: Dotfiles directory not found at ~/dotfiles")
-        print("\nPlease clone your dotfiles repository first:")
-        print("  git clone https://github.com/rogvid/dotfiles.git ~/dotfiles")
-        return 1
-
-    app = DotfilesSetupApp()
+    # Detect repository location
+    dotfiles_path = detect_dotfiles_repo()
+    
+    if dotfiles_path is None:
+        # No repository found - show clone screen
+        class CloneApp(App):
+            def on_mount(self) -> None:
+                self.push_screen(CloneScreen(), callback=self.handle_clone_result)
+            
+            def handle_clone_result(self, result: Path | None) -> None:
+                if result is None:
+                    self.exit(1)
+                else:
+                    self.exit(0)
+        
+        clone_app = CloneApp()
+        exit_code = clone_app.run()
+        
+        if exit_code != 0:
+            print("\nSetup cancelled.")
+            return 1
+        
+        # Re-detect after cloning
+        dotfiles_path = detect_dotfiles_repo()
+        if dotfiles_path is None:
+            print("\nError: Repository was not cloned successfully.")
+            return 1
+    
+    # Run the main setup app
+    app = DotfilesSetupApp(dotfiles_path)
     app.run()
     return 0
 

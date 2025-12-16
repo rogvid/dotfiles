@@ -247,6 +247,177 @@ class ExecutionLog(Static):
         self.query_one(Log).clear()
 
 
+class CloneScreen(Screen):
+    """Screen for cloning the dotfiles repository."""
+
+    CSS = """
+    CloneScreen {
+        align: center middle;
+        background: $background;
+    }
+    
+    CloneScreen Container {
+        width: 80;
+        height: auto;
+        padding: 2;
+        border: thick $primary;
+        background: $surface;
+    }
+    
+    CloneScreen .clone-title {
+        text-style: bold;
+        color: $accent;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    
+    CloneScreen .clone-description {
+        color: $text;
+        text-align: center;
+        margin-bottom: 2;
+    }
+    
+    CloneScreen Input {
+        margin: 1 0;
+    }
+    
+    CloneScreen #clone-buttons {
+        layout: horizontal;
+        height: auto;
+        align: center middle;
+        margin-top: 2;
+    }
+    
+    CloneScreen #clone-buttons Button {
+        margin: 0 1;
+    }
+    
+    CloneScreen #clone-log {
+        height: 10;
+        margin-top: 2;
+        border: round $primary;
+        padding: 1;
+        display: none;
+    }
+    
+    CloneScreen #clone-log.visible {
+        display: block;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("📦 Clone Dotfiles Repository", classes="clone-title")
+            yield Label(
+                "No dotfiles repository found. Enter the git URL to clone:",
+                classes="clone-description",
+            )
+            yield Input(
+                placeholder="https://github.com/username/dotfiles.git",
+                value="https://github.com/rogvid/dotfiles.git",
+                id="clone-url",
+            )
+            yield Label(
+                "Repository will be cloned to: ~/dotfiles",
+                classes="clone-description",
+            )
+            with Horizontal(id="clone-buttons"):
+                yield Button("🚀 Clone Repository", id="btn-clone", variant="success")
+                yield Button("❌ Cancel", id="btn-cancel", variant="error")
+            yield Log(id="clone-log", highlight=True, auto_scroll=True)
+
+    @on(Button.Pressed, "#btn-clone")
+    @work(exclusive=True)
+    async def clone_repository(self) -> None:
+        """Clone the repository."""
+        url_input = self.query_one("#clone-url", Input)
+        url = url_input.value.strip()
+
+        if not url:
+            self.notify("Please enter a repository URL", severity="error")
+            return
+
+        clone_log = self.query_one("#clone-log", Log)
+        clone_log.add_class("visible")
+        clone_log.clear()
+        clone_log.write_line("=== Cloning Repository ===\n")
+
+        target_path = Path.home() / "dotfiles"
+
+        if target_path.exists():
+            clone_log.write_line("⚠ ~/dotfiles already exists!", "yellow")
+            self.notify("~/dotfiles directory already exists", severity="warning")
+            return
+
+        try:
+            clone_log.write_line(f"Cloning from: {url}\n", "cyan")
+            clone_log.write_line(f"Target: {target_path}\n", "cyan")
+
+            # Clone the repository
+            process = await asyncio.create_subprocess_shell(
+                f"git clone {url} {target_path}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                clone_log.write_line("\n✓ Repository cloned successfully!", "bold green")
+                self.notify("Repository cloned successfully!", severity="information")
+                await asyncio.sleep(1)
+                self.dismiss(target_path)
+            else:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                clone_log.write_line(f"\n✗ Clone failed:\n{error_msg}", "red")
+                self.notify("Clone failed - check the log", severity="error")
+
+        except Exception as e:
+            clone_log.write_line(f"\n✗ Error: {str(e)}", "red")
+            self.notify(f"Error: {str(e)}", severity="error")
+
+    @on(Button.Pressed, "#btn-cancel")
+    def action_cancel(self) -> None:
+        """Cancel and exit."""
+        self.dismiss(None)
+
+
+class ExecutionLog(Static):
+    """Enhanced log viewer with rich output."""
+
+    DEFAULT_CSS = """
+    ExecutionLog {
+        height: 100%;
+        border: thick $primary;
+        background: $surface;
+    }
+    
+    ExecutionLog Log {
+        height: 1fr;
+        padding: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Log(highlight=True, markup=True, auto_scroll=True)
+
+    def write(self, message: str, style: str = "") -> None:
+        """Write a message to the log."""
+        log_widget = self.query_one(Log)
+        if style:
+            text = Text(message, style=style)
+            log_widget.write_line(text)
+        else:
+            log_widget.write(message)
+
+    def clear(self) -> None:
+        """Clear the log."""
+        self.query_one(Log).clear()
+
+
 class DotfilesSetupApp(App):
     """Modern dotfiles setup application with Textual 6.10.0."""
 

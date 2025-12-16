@@ -493,6 +493,11 @@ class DotfilesSetupApp(App):
         self._scan_setup_items()
         self._executing = False
 
+    @staticmethod
+    def _make_safe_id(path: str) -> str:
+        """Convert a path to a valid widget ID."""
+        return f"check_{path}".replace("/", "_").replace(".", "_").replace("-", "_")
+
     def _scan_setup_items(self) -> None:
         """Scan the repository for available setup items."""
         # Scan application install scripts

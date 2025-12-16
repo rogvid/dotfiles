@@ -27,5 +27,6 @@ _darcs
 ./applications/
 ./packages/
 
-# Ignore initialization script
+# Ignore initialization scripts
 setup.sh
+dotfiles-setup

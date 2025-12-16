@@ -30,6 +30,7 @@ from textual.widgets import (
     Checkbox,
     Footer,
     Header,
+    Input,
     Label,
     Log,
     ProgressBar,

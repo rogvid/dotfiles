@@ -2,7 +2,8 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "textual>=0.47.1",
+#     "textual>=6.10.0",
+#     "rich>=13.0.0",
 # ]
 # ///
 
@@ -12,63 +13,109 @@ Dotfiles Setup TUI
 Interactive TUI for setting up and configuring dotfiles on a new desktop.
 """
 
+import asyncio
 import os
 import subprocess
-import sys
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 
+from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.binding import Binding
+from textual.containers import Container, Grid, Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
 from textual.widgets import (
     Button,
     Checkbox,
     Footer,
     Header,
     Label,
-    ListItem,
-    ListView,
+    Log,
+    ProgressBar,
+    Rule,
     Static,
     TabbedContent,
     TabPane,
-    TextLog,
 )
-from textual.worker import Worker, WorkerState
 
 
-class StatusMessage(Static):
-    """Widget to display status messages with color coding."""
-
-    def set_status(self, message: str, status: str = "info"):
-        """Set status message with appropriate styling."""
-        if status == "success":
-            self.update(f"[green]✓[/green] {message}")
-        elif status == "error":
-            self.update(f"[red]✗[/red] {message}")
-        elif status == "warning":
-            self.update(f"[yellow]![/yellow] {message}")
-        else:
-            self.update(f"[blue]ℹ[/blue] {message}")
-
-
-class SetupSection(Static):
-    """A section for a specific setup component."""
+class StatusBar(Static):
+    """Custom status bar with styled messages."""
 
     DEFAULT_CSS = """
-    SetupSection {
+    StatusBar {
+        height: 3;
+        dock: bottom;
+        padding: 1 2;
+        background: $panel;
+        color: $text;
+    }
+    
+    StatusBar.success {
+        background: $success;
+        color: $text;
+    }
+    
+    StatusBar.error {
+        background: $error;
+        color: $text;
+    }
+    
+    StatusBar.warning {
+        background: $warning;
+        color: $text;
+    }
+    
+    StatusBar.info {
+        background: $primary;
+        color: $text;
+    }
+    """
+
+    def update_status(self, message: str, status: str = "info") -> None:
+        """Update the status message with styling."""
+        icons = {
+            "success": "✓",
+            "error": "✗",
+            "warning": "⚠",
+            "info": "ℹ",
+        }
+        icon = icons.get(status, "ℹ")
+        self.update(f"{icon} {message}")
+        self.remove_class("success", "error", "warning", "info")
+        self.add_class(status)
+
+
+class SetupCard(Static):
+    """A card widget for grouping related setup items."""
+
+    DEFAULT_CSS = """
+    SetupCard {
         height: auto;
-        margin: 1;
-        padding: 1;
-        border: solid $primary;
+        margin: 1 2;
+        padding: 1 2;
+        border: tall $primary;
+        background: $surface;
     }
     
-    SetupSection Label {
-        margin: 0 0 1 0;
+    SetupCard > Label.card-title {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
     }
     
-    SetupSection Checkbox {
+    SetupCard > Label.card-description {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    
+    SetupCard Checkbox {
         margin: 0 0 0 2;
+    }
+    
+    SetupCard:focus-within {
+        border: tall $accent;
     }
     """
 
@@ -81,220 +128,326 @@ class SetupSection(Static):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.title = title
-        self.description = description
-        self.items = items  # List of (name, script_path) tuples
+        self._title = title
+        self._description = description
+        self._items = items
 
     def compose(self) -> ComposeResult:
-        yield Label(f"[bold]{self.title}[/bold]")
-        yield Label(f"[dim]{self.description}[/dim]")
-        for name, script_path in self.items:
+        yield Label(self._title, classes="card-title")
+        yield Label(self._description, classes="card-description")
+        for name, script_path in self._items:
             yield Checkbox(name, value=True, id=f"check_{script_path}")
 
 
-class LogViewer(VerticalScroll):
-    """Widget to display command output logs."""
+class SystemInfo(Static):
+    """Display system information in a nice grid."""
 
     DEFAULT_CSS = """
-    LogViewer {
-        height: 100%;
-        border: solid $secondary;
-        padding: 1;
+    SystemInfo {
+        height: auto;
+        margin: 1 2;
+        padding: 1 2;
+        border: round $success;
+        background: $surface;
     }
     
-    LogViewer TextLog {
-        height: 100%;
+    SystemInfo .info-grid {
+        layout: grid;
+        grid-size: 2;
+        grid-gutter: 1 2;
+        height: auto;
+    }
+    
+    SystemInfo Label.info-label {
+        text-style: bold;
+        color: $accent;
+    }
+    
+    SystemInfo Label.info-value {
+        color: $text;
+    }
+    """
+
+    def __init__(self, dotfiles_path: Path):
+        super().__init__()
+        self.dotfiles_path = dotfiles_path
+
+    def compose(self) -> ComposeResult:
+        yield Label("📁 System Information", classes="card-title")
+        with Grid(classes="info-grid"):
+            yield Label("Repository:", classes="info-label")
+            yield Label(str(self.dotfiles_path), classes="info-value")
+            yield Label("Home:", classes="info-label")
+            yield Label(str(Path.home()), classes="info-value")
+            yield Label("User:", classes="info-label")
+            yield Label(os.getenv("USER", "unknown"), classes="info-value")
+
+
+class PrerequisiteCheck(Static):
+    """Widget to check and display prerequisites."""
+
+    DEFAULT_CSS = """
+    PrerequisiteCheck {
+        height: auto;
+        margin: 1 2;
+        padding: 1 2;
+        border: round $warning;
+        background: $surface;
+    }
+    
+    PrerequisiteCheck Checkbox {
+        margin: 0 0 1 2;
     }
     """
 
     def compose(self) -> ComposeResult:
-        yield TextLog(highlight=True, markup=True)
-
-    def write_line(self, message: str, style: str = ""):
-        """Write a line to the log."""
-        text_log = self.query_one(TextLog)
-        if style:
-            text_log.write(f"[{style}]{message}[/{style}]")
-        else:
-            text_log.write(message)
-
-    def clear_log(self):
-        """Clear the log."""
-        text_log = self.query_one(TextLog)
-        text_log.clear()
+        yield Label("🔧 System Prerequisites", classes="card-title")
+        yield Label(
+            "The following tools are required for setup:",
+            classes="card-description",
+        )
+        yield Checkbox("Git", value=True, id="check_git", disabled=True)
+        yield Checkbox("GNU Stow", value=False, id="check_stow")
+        yield Checkbox("Curl", value=False, id="check_curl")
+        yield Label("")
+        yield Button("🔍 Check Prerequisites", id="btn_check_prereqs", variant="primary")
 
 
-class DotfilesSetupApp(App):
-    """A Textual app for setting up dotfiles."""
+class ExecutionLog(Static):
+    """Enhanced log viewer with rich output."""
 
-    CSS = """
-    Screen {
-        align: center middle;
-    }
-    
-    #main-container {
-        width: 90%;
-        height: 90%;
-        border: thick $background 50%;
+    DEFAULT_CSS = """
+    ExecutionLog {
+        height: 100%;
+        border: thick $primary;
         background: $surface;
     }
     
-    #button-container {
-        height: auto;
-        width: 100%;
-        align: center middle;
+    ExecutionLog Log {
+        height: 1fr;
         padding: 1;
     }
-    
-    #button-container Button {
-        margin: 0 1;
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Log(highlight=True, markup=True, auto_scroll=True)
+
+    def write(self, message: str, style: str = "") -> None:
+        """Write a message to the log."""
+        log_widget = self.query_one(Log)
+        if style:
+            text = Text(message, style=style)
+            log_widget.write_line(text)
+        else:
+            log_widget.write(message)
+
+    def clear(self) -> None:
+        """Clear the log."""
+        self.query_one(Log).clear()
+
+
+class DotfilesSetupApp(App):
+    """Modern dotfiles setup application with Textual 6.10.0."""
+
+    CSS = """
+    Screen {
+        background: $background;
     }
     
-    #status-bar {
+    TabbedContent {
+        height: 1fr;
+    }
+    
+    TabPane {
+        padding: 0;
+    }
+    
+    #button-bar {
         dock: bottom;
-        height: 3;
+        height: auto;
+        padding: 1 2;
         background: $panel;
-        padding: 1;
+        layout: horizontal;
+    }
+    
+    #button-bar Button {
+        margin: 0 1;
+        min-width: 16;
+    }
+    
+    .welcome-text {
+        margin: 2 2;
+        padding: 2;
+        background: $primary 20%;
+        border: wide $primary;
+        text-align: center;
+    }
+    
+    .welcome-title {
+        text-style: bold;
+        color: $accent;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    
+    ProgressBar {
+        margin: 1 2;
+    }
+    
+    Rule {
+        margin: 1 2;
+        color: $primary;
     }
     """
 
     BINDINGS = [
-        ("q", "quit", "Quit"),
-        ("d", "toggle_dark", "Toggle Dark Mode"),
+        Binding("q", "quit", "Quit", priority=True),
+        Binding("d", "toggle_dark", "Toggle Dark Mode"),
+        Binding("1", "tab_overview", "Overview"),
+        Binding("2", "tab_prereqs", "Prerequisites"),
+        Binding("3", "tab_stow", "Stow Packages"),
+        Binding("4", "tab_apps", "Applications"),
+        Binding("5", "tab_log", "Log"),
     ]
 
     def __init__(self):
         super().__init__()
         self.dotfiles_path = Path.home() / "dotfiles"
-        self.setup_items: Dict[str, List[Tuple[str, str]]] = {}
+        self.setup_items = {}
         self._scan_setup_items()
+        self._executing = False
 
-    def _scan_setup_items(self):
+    def _scan_setup_items(self) -> None:
         """Scan the repository for available setup items."""
+        # Scan application install scripts
         apps_dir = self.dotfiles_path / "applications"
         if apps_dir.exists():
             install_scripts = []
             for script in sorted(apps_dir.glob("install-*.sh")):
                 name = script.stem.replace("install-", "").replace("-", " ").title()
                 install_scripts.append((name, str(script.relative_to(self.dotfiles_path))))
-            
+
             if install_scripts:
                 self.setup_items["applications"] = install_scripts
 
-        # Stow packages (directories with config files)
+        # Scan stow packages
         stow_dirs = []
+        exclude_dirs = {"applications", "vscode", "prompts", ".git"}
         for item in sorted(self.dotfiles_path.iterdir()):
-            if item.is_dir() and not item.name.startswith(".") and item.name not in [
-                "applications",
-                "vscode",
-                "prompts",
-            ]:
-                stow_dirs.append((item.name.title(), item.name))
-        
+            if (
+                item.is_dir()
+                and not item.name.startswith(".")
+                and item.name not in exclude_dirs
+            ):
+                stow_dirs.append((item.name.replace("-", " ").title(), item.name))
+
         if stow_dirs:
             self.setup_items["stow_packages"] = stow_dirs
 
     def compose(self) -> ComposeResult:
-        """Create child widgets for the app."""
+        """Create the UI layout."""
         yield Header(show_clock=True)
-        
-        with Container(id="main-container"):
-            with TabbedContent(initial="overview"):
-                with TabPane("Overview", id="overview"):
+
+        with TabbedContent(initial="tab_overview"):
+            with TabPane("🏠 Overview", id="tab_overview"):
+                with VerticalScroll():
                     yield Static(
-                        "[bold]Dotfiles Setup Tool[/bold]\n\n"
-                        "This interactive tool will help you set up your dotfiles "
-                        "and install applications on a new system.\n\n"
-                        "[dim]Use the tabs above to navigate between sections.[/dim]",
-                        id="welcome",
+                        "✨ Dotfiles Setup Tool ✨",
+                        classes="welcome-title",
                     )
                     yield Static(
-                        f"\n[bold]Repository:[/bold] {self.dotfiles_path}\n"
-                        f"[bold]Home:[/bold] {Path.home()}\n"
-                        f"[bold]User:[/bold] {os.getenv('USER', 'unknown')}",
-                        id="system-info",
+                        "Welcome! This interactive tool will help you set up your "
+                        "dotfiles and install applications on a new system.\n\n"
+                        "Use the tabs above (or number keys 1-5) to navigate between sections.\n"
+                        "Press 'q' to quit at any time.",
+                        classes="welcome-text",
                     )
-                
-                with TabPane("Prerequisites", id="prereqs"):
-                    yield Label("[bold]System Prerequisites[/bold]\n")
-                    yield Label("The following tools are required:")
-                    yield Checkbox("Git", value=True, id="check_git", disabled=True)
-                    yield Checkbox("Stow", value=False, id="check_stow")
-                    yield Checkbox("Curl", value=False, id="check_curl")
-                    yield Label("\n[dim]Click 'Check Prerequisites' to verify installations.[/dim]")
-                
-                with TabPane("Stow Packages", id="stow"):
-                    with VerticalScroll():
-                        if "stow_packages" in self.setup_items:
-                            yield SetupSection(
-                                "Configuration Packages",
-                                "Select which configuration packages to stow to $HOME",
-                                self.setup_items["stow_packages"],
-                            )
-                        else:
-                            yield Label("[yellow]No stow packages found[/yellow]")
-                
-                with TabPane("Applications", id="apps"):
-                    with VerticalScroll():
-                        if "applications" in self.setup_items:
-                            yield SetupSection(
-                                "Application Installers",
-                                "Select which applications to install",
-                                self.setup_items["applications"],
-                            )
-                        else:
-                            yield Label("[yellow]No application installers found[/yellow]")
-                
-                with TabPane("Execution Log", id="log"):
-                    yield LogViewer()
-            
-            with Horizontal(id="button-container"):
-                yield Button("Check Prerequisites", id="btn_check", variant="primary")
-                yield Button("Run Setup", id="btn_setup", variant="success")
-                yield Button("Stow All", id="btn_stow", variant="default")
-                yield Button("Clear Log", id="btn_clear", variant="default")
-        
-        with Container(id="status-bar"):
-            yield StatusMessage("Ready to configure your dotfiles")
-        
+                    yield SystemInfo(self.dotfiles_path)
+
+            with TabPane("🔧 Prerequisites", id="tab_prereqs"):
+                with VerticalScroll():
+                    yield PrerequisiteCheck()
+
+            with TabPane("📦 Stow Packages", id="tab_stow"):
+                with VerticalScroll():
+                    if "stow_packages" in self.setup_items:
+                        yield SetupCard(
+                            "Configuration Packages",
+                            "Select which configuration packages to stow to $HOME",
+                            self.setup_items["stow_packages"],
+                        )
+                    else:
+                        yield Label(
+                            "⚠️  No stow packages found",
+                            classes="welcome-text",
+                        )
+
+            with TabPane("🚀 Applications", id="tab_apps"):
+                with VerticalScroll():
+                    if "applications" in self.setup_items:
+                        yield SetupCard(
+                            "Application Installers",
+                            "Select which applications to install",
+                            self.setup_items["applications"],
+                        )
+                    else:
+                        yield Label(
+                            "⚠️  No application installers found",
+                            classes="welcome-text",
+                        )
+
+            with TabPane("📋 Execution Log", id="tab_log"):
+                yield ExecutionLog()
+
+        with Horizontal(id="button-bar"):
+            yield Button("🔍 Check Prerequisites", id="btn_check", variant="primary")
+            yield Button("▶️  Run Setup", id="btn_setup", variant="success")
+            yield Button("📦 Stow All", id="btn_stow", variant="default")
+            yield Button("🗑️  Clear Log", id="btn_clear", variant="default")
+
+        yield StatusBar("Ready to configure your dotfiles", id="status_bar")
         yield Footer()
 
     def on_mount(self) -> None:
-        """Called when app starts."""
+        """Called when the app starts."""
         self.title = "Dotfiles Setup"
-        self.sub_title = str(self.dotfiles_path)
+        self.sub_title = f"📁 {self.dotfiles_path}"
         self._check_prerequisites_silent()
 
-    def _check_prerequisites_silent(self):
+    def _check_prerequisites_silent(self) -> None:
         """Silently check prerequisites on startup."""
-        try:
-            subprocess.run(["git", "--version"], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-        
-        try:
-            subprocess.run(["stow", "--version"], capture_output=True, check=True)
-            self.query_one("#check_stow", Checkbox).value = True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-        
-        try:
-            subprocess.run(["curl", "--version"], capture_output=True, check=True)
-            self.query_one("#check_curl", Checkbox).value = True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+        tools = [("stow", "#check_stow"), ("curl", "#check_curl")]
+        for tool, checkbox_id in tools:
+            try:
+                subprocess.run(
+                    [tool, "--version"],
+                    capture_output=True,
+                    check=True,
+                    timeout=5,
+                )
+                self.query_one(checkbox_id, Checkbox).value = True
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                pass
 
+    def _update_status(self, message: str, status: str = "info") -> None:
+        """Update the status bar."""
+        self.query_one("#status_bar", StatusBar).update_status(message, status)
+
+    @on(Button.Pressed, "#btn_check_prereqs")
     @on(Button.Pressed, "#btn_check")
-    def check_prerequisites(self):
+    def check_prerequisites(self) -> None:
         """Check if required tools are installed."""
+        if self._executing:
+            return
+
         self._update_status("Checking prerequisites...", "info")
-        log = self.query_one(LogViewer)
-        log.clear_log()
-        log.write_line("=== Checking Prerequisites ===\n", "bold cyan")
-        
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        log.write("=== Checking Prerequisites ===\n", "bold cyan")
+
         tools = [("git", "#check_git"), ("stow", "#check_stow"), ("curl", "#check_curl")]
         all_good = True
-        
+
         for tool, checkbox_id in tools:
             try:
                 result = subprocess.run(
@@ -302,176 +455,210 @@ class DotfilesSetupApp(App):
                     capture_output=True,
                     text=True,
                     check=True,
+                    timeout=5,
                 )
                 self.query_one(checkbox_id, Checkbox).value = True
-                log.write_line(f"✓ {tool}: Found", "green")
-                log.write_line(f"  {result.stdout.splitlines()[0]}", "dim")
-            except (subprocess.CalledProcessError, FileNotFoundError):
+                log.write(f"✓ {tool}: Found\n", "green")
+                version_line = result.stdout.splitlines()[0]
+                log.write(f"  {version_line}\n", "dim")
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
                 self.query_one(checkbox_id, Checkbox).value = False
-                log.write_line(f"✗ {tool}: Not found", "red")
+                log.write(f"✗ {tool}: Not found\n", "red")
                 all_good = False
-        
+
+        log.write("\n")
         if all_good:
+            log.write("✓ All prerequisites satisfied!\n", "bold green")
             self._update_status("All prerequisites satisfied!", "success")
         else:
+            log.write("⚠ Some prerequisites are missing\n", "bold yellow")
             self._update_status("Some prerequisites are missing", "warning")
 
     @on(Button.Pressed, "#btn_setup")
     @work(exclusive=True)
-    async def run_setup(self):
+    async def run_setup(self) -> None:
         """Run the selected setup items."""
-        log = self.query_one(LogViewer)
-        log.clear_log()
-        log.write_line("=== Starting Setup ===\n", "bold cyan")
-        
+        if self._executing:
+            return
+
+        self._executing = True
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        log.write("=== Starting Setup ===\n", "bold cyan")
+
         self._update_status("Running setup...", "info")
-        
+
         # Check stow is available
         stow_check = self.query_one("#check_stow", Checkbox)
         if not stow_check.value:
-            log.write_line("✗ Stow is not installed. Cannot proceed.", "red")
+            log.write("✗ Stow is not installed. Cannot proceed.\n", "red")
             self._update_status("Setup failed: stow not found", "error")
+            self._executing = False
             return
-        
-        # Run application installers
-        if "applications" in self.setup_items:
-            log.write_line("\n--- Installing Applications ---\n", "bold yellow")
-            for name, script_path in self.setup_items["applications"]:
-                checkbox = self.query_one(f"#check_{script_path}", Checkbox)
-                if checkbox.value:
-                    await self._run_script(script_path, name, log)
-        
-        # Stow selected packages
-        if "stow_packages" in self.setup_items:
-            log.write_line("\n--- Stowing Configuration Packages ---\n", "bold yellow")
-            for name, package in self.setup_items["stow_packages"]:
-                checkbox = self.query_one(f"#check_{package}", Checkbox)
-                if checkbox.value:
-                    await self._stow_package(package, log)
-        
-        log.write_line("\n=== Setup Complete ===", "bold green")
-        self._update_status("Setup completed!", "success")
 
-    async def _run_script(self, script_path: str, name: str, log: LogViewer):
+        try:
+            # Run application installers
+            if "applications" in self.setup_items:
+                log.write("\n--- Installing Applications ---\n", "bold yellow")
+                for name, script_path in self.setup_items["applications"]:
+                    checkbox = self.query_one(f"#check_{script_path}", Checkbox)
+                    if checkbox.value:
+                        await self._run_script(script_path, name, log)
+
+            # Stow selected packages
+            if "stow_packages" in self.setup_items:
+                log.write("\n--- Stowing Configuration Packages ---\n", "bold yellow")
+                for name, package in self.setup_items["stow_packages"]:
+                    checkbox = self.query_one(f"#check_{package}", Checkbox)
+                    if checkbox.value:
+                        await self._stow_package(package, log)
+
+            log.write("\n=== Setup Complete ===\n", "bold green")
+            self._update_status("Setup completed!", "success")
+        finally:
+            self._executing = False
+
+    async def _run_script(self, script_path: str, name: str, log: ExecutionLog) -> None:
         """Run an installation script."""
         full_path = self.dotfiles_path / script_path
-        log.write_line(f"\n▶ Running: {name}", "cyan")
-        log.write_line(f"  Script: {script_path}", "dim")
-        
-        try:
-            process = await self.run_process(
-                f"bash {full_path}",
-                shell=True,
-                cwd=str(self.dotfiles_path),
-            )
-            
-            if process.returncode == 0:
-                log.write_line(f"✓ {name} completed successfully", "green")
-            else:
-                log.write_line(f"✗ {name} failed (exit code: {process.returncode})", "red")
-                if process.stderr:
-                    log.write_line(f"  Error: {process.stderr}", "red")
-        except Exception as e:
-            log.write_line(f"✗ {name} failed: {str(e)}", "red")
+        log.write(f"\n▶ Running: {name}\n", "cyan")
+        log.write(f"  Script: {script_path}\n", "dim")
 
-    async def _stow_package(self, package: str, log: LogViewer):
-        """Stow a configuration package."""
-        log.write_line(f"\n▶ Stowing: {package}", "cyan")
-        
         try:
-            process = await self.run_process(
-                f"stow --verbose --restow --target={Path.home()} {package}",
-                shell=True,
+            process = await asyncio.create_subprocess_shell(
+                f"bash {full_path}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.dotfiles_path),
             )
-            
+            stdout, stderr = await process.communicate()
+
             if process.returncode == 0:
-                log.write_line(f"✓ {package} stowed successfully", "green")
+                log.write(f"✓ {name} completed successfully\n", "green")
+                if stdout:
+                    log.write(f"  Output: {stdout.decode()[:200]}\n", "dim")
             else:
-                log.write_line(f"✗ {package} stow failed (exit code: {process.returncode})", "red")
-                if process.stderr:
-                    log.write_line(f"  Error: {process.stderr}", "red")
+                log.write(
+                    f"✗ {name} failed (exit code: {process.returncode})\n",
+                    "red",
+                )
+                if stderr:
+                    log.write(f"  Error: {stderr.decode()[:200]}\n", "red")
         except Exception as e:
-            log.write_line(f"✗ {package} stow failed: {str(e)}", "red")
+            log.write(f"✗ {name} failed: {str(e)}\n", "red")
+
+    async def _stow_package(self, package: str, log: ExecutionLog) -> None:
+        """Stow a configuration package."""
+        log.write(f"\n▶ Stowing: {package}\n", "cyan")
+
+        try:
+            process = await asyncio.create_subprocess_shell(
+                f"stow --verbose --restow --target={Path.home()} {package}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(self.dotfiles_path),
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                log.write(f"✓ {package} stowed successfully\n", "green")
+            else:
+                log.write(
+                    f"✗ {package} stow failed (exit code: {process.returncode})\n",
+                    "red",
+                )
+                if stderr:
+                    error_msg = stderr.decode()[:300]
+                    log.write(f"  Error: {error_msg}\n", "red")
+        except Exception as e:
+            log.write(f"✗ {package} stow failed: {str(e)}\n", "red")
 
     @on(Button.Pressed, "#btn_stow")
     @work(exclusive=True)
-    async def stow_all(self):
+    async def stow_all(self) -> None:
         """Stow all packages at once."""
-        log = self.query_one(LogViewer)
-        log.clear_log()
-        log.write_line("=== Stowing All Packages ===\n", "bold cyan")
-        
+        if self._executing:
+            return
+
+        self._executing = True
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        log.write("=== Stowing All Packages ===\n", "bold cyan")
+
         self._update_status("Stowing all packages...", "info")
-        
+
         try:
-            process = await self.run_process(
+            process = await asyncio.create_subprocess_shell(
                 f"stow --verbose --restow --target={Path.home()} */",
-                shell=True,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.dotfiles_path),
             )
-            
+            stdout, stderr = await process.communicate()
+
             if process.returncode == 0:
-                log.write_line("✓ All packages stowed successfully", "green")
+                log.write("✓ All packages stowed successfully\n", "bold green")
                 self._update_status("All packages stowed!", "success")
             else:
-                log.write_line(f"✗ Stow failed (exit code: {process.returncode})", "red")
-                if process.stderr:
-                    log.write_line(f"Error: {process.stderr}", "red")
+                log.write(
+                    f"✗ Stow failed (exit code: {process.returncode})\n",
+                    "bold red",
+                )
+                if stderr:
+                    log.write(f"Error: {stderr.decode()}\n", "red")
                 self._update_status("Stow failed", "error")
         except Exception as e:
-            log.write_line(f"✗ Stow failed: {str(e)}", "red")
+            log.write(f"✗ Stow failed: {str(e)}\n", "red")
             self._update_status("Stow failed", "error")
+        finally:
+            self._executing = False
 
     @on(Button.Pressed, "#btn_clear")
-    def clear_log(self):
+    def clear_log(self) -> None:
         """Clear the execution log."""
-        log = self.query_one(LogViewer)
-        log.clear_log()
+        log = self.query_one(ExecutionLog)
+        log.clear()
         self._update_status("Log cleared", "info")
-
-    def _update_status(self, message: str, status: str = "info"):
-        """Update the status bar."""
-        status_widget = self.query_one(StatusMessage)
-        status_widget.set_status(message, status)
-
-    async def run_process(self, command: str, shell: bool = True, cwd: str = None):
-        """Run a subprocess asynchronously."""
-        process = await subprocess.create_subprocess_shell(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=cwd,
-        )
-        stdout, stderr = await process.communicate()
-        
-        class Result:
-            def __init__(self, returncode, stdout, stderr):
-                self.returncode = returncode
-                self.stdout = stdout.decode() if stdout else ""
-                self.stderr = stderr.decode() if stderr else ""
-        
-        return Result(process.returncode, stdout, stderr)
 
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
         self.dark = not self.dark
 
+    def action_tab_overview(self) -> None:
+        """Switch to overview tab."""
+        self.query_one(TabbedContent).active = "tab_overview"
+
+    def action_tab_prereqs(self) -> None:
+        """Switch to prerequisites tab."""
+        self.query_one(TabbedContent).active = "tab_prereqs"
+
+    def action_tab_stow(self) -> None:
+        """Switch to stow packages tab."""
+        self.query_one(TabbedContent).active = "tab_stow"
+
+    def action_tab_apps(self) -> None:
+        """Switch to applications tab."""
+        self.query_one(TabbedContent).active = "tab_apps"
+
+    def action_tab_log(self) -> None:
+        """Switch to log tab."""
+        self.query_one(TabbedContent).active = "tab_log"
+
 
 def main():
     """Main entry point."""
-    # Check if we're in a dotfiles repository
     dotfiles_path = Path.home() / "dotfiles"
-    
+
     if not dotfiles_path.exists():
         print("Error: Dotfiles directory not found at ~/dotfiles")
         print("\nPlease clone your dotfiles repository first:")
         print("  git clone https://github.com/rogvid/dotfiles.git ~/dotfiles")
-        sys.exit(1)
-    
+        return 1
+
     app = DotfilesSetupApp()
     app.run()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())

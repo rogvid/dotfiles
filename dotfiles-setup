@@ -138,8 +138,8 @@ class SetupCard(Static):
         yield Label(self._description, classes="card-description")
         for name, script_path in self._items:
             # Create valid ID by replacing invalid characters
-            safe_id = f"check_{script_path}".replace("/", "_").replace(".", "_").replace("-", "_")
-            yield Checkbox(name, value=True, id=safe_id)
+            safe_id = script_path.replace("/", "_").replace(".", "_").replace("-", "_")
+            yield Checkbox(name, value=True, id=f"check_{safe_id}")
 
 
 class SystemInfo(Static):

@@ -218,39 +218,6 @@ class PrerequisiteCheck(Static):
         yield Button("🔍 Check Prerequisites", id="btn_check_prereqs", variant="primary")
 
 
-class ExecutionLog(Static):
-    """Enhanced log viewer with rich output."""
-
-    DEFAULT_CSS = """
-    ExecutionLog {
-        height: 100%;
-        border: thick $primary;
-        background: $surface;
-    }
-    
-    ExecutionLog Log {
-        height: 1fr;
-        padding: 1;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        yield Log(highlight=True, markup=True, auto_scroll=True)
-
-    def write(self, message: str, style: str = "") -> None:
-        """Write a message to the log."""
-        log_widget = self.query_one(Log)
-        if style:
-            text = Text(message, style=style)
-            log_widget.write_line(text)
-        else:
-            log_widget.write(message)
-
-    def clear(self) -> None:
-        """Clear the log."""
-        self.query_one(Log).clear()
-
-
 class CloneScreen(Screen):
     """Screen for cloning the dotfiles repository."""
 

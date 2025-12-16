@@ -137,7 +137,9 @@ class SetupCard(Static):
         yield Label(self._title, classes="card-title")
         yield Label(self._description, classes="card-description")
         for name, script_path in self._items:
-            yield Checkbox(name, value=True, id=f"check_{script_path}")
+            # Create valid ID by replacing invalid characters
+            safe_id = f"check_{script_path}".replace("/", "_").replace(".", "_").replace("-", "_")
+            yield Checkbox(name, value=True, id=safe_id)
 
 
 class SystemInfo(Static):

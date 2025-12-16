@@ -1,0 +1,880 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "textual>=6.10.0",
+#     "rich>=13.0.0",
+# ]
+# ///
+
+"""
+Dotfiles Setup TUI
+==================
+Interactive TUI for setting up and configuring dotfiles on a new desktop.
+"""
+
+import asyncio
+import os
+import subprocess
+from pathlib import Path
+from typing import List, Tuple
+
+from rich.text import Text
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Grid, Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
+from textual.widgets import (
+    Button,
+    Checkbox,
+    Footer,
+    Header,
+    Input,
+    Label,
+    Log,
+    ProgressBar,
+    Rule,
+    Static,
+    TabbedContent,
+    TabPane,
+)
+
+
+class StatusBar(Static):
+    """Custom status bar with styled messages."""
+
+    DEFAULT_CSS = """
+    StatusBar {
+        height: 3;
+        dock: bottom;
+        padding: 1 2;
+        background: $panel;
+        color: $text;
+    }
+    
+    StatusBar.success {
+        background: $success;
+        color: $text;
+    }
+    
+    StatusBar.error {
+        background: $error;
+        color: $text;
+    }
+    
+    StatusBar.warning {
+        background: $warning;
+        color: $text;
+    }
+    
+    StatusBar.info {
+        background: $primary;
+        color: $text;
+    }
+    """
+
+    def update_status(self, message: str, status: str = "info") -> None:
+        """Update the status message with styling."""
+        icons = {
+            "success": "✓",
+            "error": "✗",
+            "warning": "⚠",
+            "info": "ℹ",
+        }
+        icon = icons.get(status, "ℹ")
+        self.update(f"{icon} {message}")
+        self.remove_class("success", "error", "warning", "info")
+        self.add_class(status)
+
+
+class SetupCard(Static):
+    """A card widget for grouping related setup items."""
+
+    DEFAULT_CSS = """
+    SetupCard {
+        height: auto;
+        margin: 1 2;
+        padding: 1 2;
+        border: tall $primary;
+        background: $surface;
+    }
+    
+    SetupCard > Label.card-title {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+    
+    SetupCard > Label.card-description {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    
+    SetupCard Checkbox {
+        margin: 0 0 0 2;
+    }
+    
+    SetupCard:focus-within {
+        border: tall $accent;
+    }
+    """
+
+    def __init__(
+        self,
+        title: str,
+        description: str,
+        items: List[Tuple[str, str]],
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._title = title
+        self._description = description
+        self._items = items
+
+    def compose(self) -> ComposeResult:
+        yield Label(self._title, classes="card-title")
+        yield Label(self._description, classes="card-description")
+        for name, script_path in self._items:
+            # Create valid ID by replacing invalid characters
+            safe_id = script_path.replace("/", "_").replace(".", "_").replace("-", "_")
+            yield Checkbox(name, value=True, id=f"check_{safe_id}")
+
+
+class SystemInfo(Static):
+    """Display system information in a nice grid."""
+
+    DEFAULT_CSS = """
+    SystemInfo {
+        height: auto;
+        margin: 1 2;
+        padding: 1 2;
+        border: round $success;
+        background: $surface;
+    }
+    
+    SystemInfo .info-grid {
+        layout: grid;
+        grid-size: 2;
+        grid-gutter: 1 2;
+        height: auto;
+    }
+    
+    SystemInfo Label.info-label {
+        text-style: bold;
+        color: $accent;
+    }
+    
+    SystemInfo Label.info-value {
+        color: $text;
+    }
+    """
+
+    def __init__(self, dotfiles_path: Path):
+        super().__init__()
+        self.dotfiles_path = dotfiles_path
+
+    def compose(self) -> ComposeResult:
+        yield Label("📁 System Information", classes="card-title")
+        with Grid(classes="info-grid"):
+            yield Label("Repository:", classes="info-label")
+            yield Label(str(self.dotfiles_path), classes="info-value")
+            yield Label("Home:", classes="info-label")
+            yield Label(str(Path.home()), classes="info-value")
+            yield Label("User:", classes="info-label")
+            yield Label(os.getenv("USER", "unknown"), classes="info-value")
+            yield Label("Current Dir:", classes="info-label")
+            yield Label(str(Path.cwd()), classes="info-value")
+
+
+class PrerequisiteCheck(Static):
+    """Widget to check and display prerequisites."""
+
+    DEFAULT_CSS = """
+    PrerequisiteCheck {
+        height: auto;
+        margin: 1 2;
+        padding: 1 2;
+        border: round $warning;
+        background: $surface;
+    }
+    
+    PrerequisiteCheck Checkbox {
+        margin: 0 0 1 2;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Label("🔧 System Prerequisites", classes="card-title")
+        yield Label(
+            "The following tools are required for setup:",
+            classes="card-description",
+        )
+        yield Checkbox("Git", value=True, id="check_git", disabled=True)
+        yield Checkbox("GNU Stow", value=False, id="check_stow")
+        yield Checkbox("Curl", value=False, id="check_curl")
+        yield Label("")
+        yield Button("🔍 Check Prerequisites", id="btn_check_prereqs", variant="primary")
+
+
+class CloneScreen(Screen):
+    """Screen for cloning the dotfiles repository."""
+
+    CSS = """
+    CloneScreen {
+        align: center middle;
+        background: $background;
+    }
+    
+    CloneScreen Container {
+        width: 80;
+        height: auto;
+        padding: 2;
+        border: thick $primary;
+        background: $surface;
+    }
+    
+    CloneScreen .clone-title {
+        text-style: bold;
+        color: $accent;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    
+    CloneScreen .clone-description {
+        color: $text;
+        text-align: center;
+        margin-bottom: 2;
+    }
+    
+    CloneScreen Input {
+        margin: 1 0;
+    }
+    
+    CloneScreen #clone-buttons {
+        layout: horizontal;
+        height: auto;
+        align: center middle;
+        margin-top: 2;
+    }
+    
+    CloneScreen #clone-buttons Button {
+        margin: 0 1;
+    }
+    
+    CloneScreen #clone-log {
+        height: 10;
+        margin-top: 2;
+        border: round $primary;
+        padding: 1;
+        display: none;
+    }
+    
+    CloneScreen #clone-log.visible {
+        display: block;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("📦 Clone Dotfiles Repository", classes="clone-title")
+            yield Label(
+                "No dotfiles repository found. Enter the git URL to clone:",
+                classes="clone-description",
+            )
+            yield Input(
+                placeholder="https://github.com/username/dotfiles.git",
+                value="https://github.com/rogvid/dotfiles.git",
+                id="clone-url",
+            )
+            yield Label(
+                "Repository will be cloned to: ~/dotfiles",
+                classes="clone-description",
+            )
+            with Horizontal(id="clone-buttons"):
+                yield Button("🚀 Clone Repository", id="btn-clone", variant="success")
+                yield Button("❌ Cancel", id="btn-cancel", variant="error")
+            yield Log(id="clone-log", highlight=True, auto_scroll=True)
+
+    @on(Button.Pressed, "#btn-clone")
+    @work(exclusive=True)
+    async def clone_repository(self) -> None:
+        """Clone the repository."""
+        url_input = self.query_one("#clone-url", Input)
+        url = url_input.value.strip()
+
+        if not url:
+            self.notify("Please enter a repository URL", severity="error")
+            return
+
+        clone_log = self.query_one("#clone-log", Log)
+        clone_log.add_class("visible")
+        clone_log.clear()
+        clone_log.write_line("=== Cloning Repository ===\n")
+
+        target_path = Path.home() / "dotfiles"
+
+        if target_path.exists():
+            clone_log.write_line("⚠ ~/dotfiles already exists!", "yellow")
+            self.notify("~/dotfiles directory already exists", severity="warning")
+            return
+
+        try:
+            clone_log.write_line(f"Cloning from: {url}\n", "cyan")
+            clone_log.write_line(f"Target: {target_path}\n", "cyan")
+
+            # Clone the repository
+            process = await asyncio.create_subprocess_shell(
+                f"git clone {url} {target_path}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                clone_log.write_line("\n✓ Repository cloned successfully!", "bold green")
+                self.notify("Repository cloned successfully!", severity="information")
+                await asyncio.sleep(1)
+                self.dismiss(target_path)
+            else:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                clone_log.write_line(f"\n✗ Clone failed:\n{error_msg}", "red")
+                self.notify("Clone failed - check the log", severity="error")
+
+        except Exception as e:
+            clone_log.write_line(f"\n✗ Error: {str(e)}", "red")
+            self.notify(f"Error: {str(e)}", severity="error")
+
+    @on(Button.Pressed, "#btn-cancel")
+    def action_cancel(self) -> None:
+        """Cancel and exit."""
+        self.dismiss(None)
+
+
+class ExecutionLog(Static):
+    """Enhanced log viewer with rich output."""
+
+    DEFAULT_CSS = """
+    ExecutionLog {
+        height: 100%;
+        border: thick $primary;
+        background: $surface;
+    }
+    
+    ExecutionLog Log {
+        height: 1fr;
+        padding: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Log(highlight=True, auto_scroll=True)
+
+    def write(self, message: str, style: str = "") -> None:
+        """Write a message to the log."""
+        log_widget = self.query_one(Log)
+        if style:
+            text = Text(message, style=style)
+            log_widget.write_line(text)
+        else:
+            log_widget.write(message)
+
+    def clear(self) -> None:
+        """Clear the log."""
+        self.query_one(Log).clear()
+
+
+class DotfilesSetupApp(App):
+    """Modern dotfiles setup application with Textual 6.10.0."""
+
+    CSS = """
+    Screen {
+        background: $background;
+    }
+    
+    TabbedContent {
+        height: 1fr;
+    }
+    
+    TabPane {
+        padding: 0;
+    }
+    
+    #button-bar {
+        dock: bottom;
+        height: auto;
+        padding: 1 2;
+        background: $panel;
+        layout: horizontal;
+    }
+    
+    #button-bar Button {
+        margin: 0 1;
+        min-width: 16;
+    }
+    
+    .welcome-text {
+        margin: 2 2;
+        padding: 2;
+        background: $primary 20%;
+        border: wide $primary;
+        text-align: center;
+    }
+    
+    .welcome-title {
+        text-style: bold;
+        color: $accent;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    
+    ProgressBar {
+        margin: 1 2;
+    }
+    
+    Rule {
+        margin: 1 2;
+        color: $primary;
+    }
+    """
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit", priority=True),
+        Binding("d", "toggle_dark", "Toggle Dark Mode"),
+        Binding("1", "tab_overview", "Overview"),
+        Binding("2", "tab_prereqs", "Prerequisites"),
+        Binding("3", "tab_stow", "Stow Packages"),
+        Binding("4", "tab_apps", "Applications"),
+        Binding("5", "tab_log", "Log"),
+    ]
+
+    def __init__(self, dotfiles_path: Path):
+        super().__init__()
+        self.dotfiles_path = dotfiles_path
+        self.setup_items = {}
+        self._scan_setup_items()
+        self._executing = False
+
+    @staticmethod
+    def _make_safe_id(path: str) -> str:
+        """Convert a path to a valid widget ID."""
+        return f"check_{path}".replace("/", "_").replace(".", "_").replace("-", "_")
+
+    def _scan_setup_items(self) -> None:
+        """Scan the repository for available setup items."""
+        # Scan application install scripts
+        apps_dir = self.dotfiles_path / "applications"
+        if apps_dir.exists():
+            install_scripts = []
+            for script in sorted(apps_dir.glob("install-*.sh")):
+                name = script.stem.replace("install-", "").replace("-", " ").title()
+                install_scripts.append((name, str(script.relative_to(self.dotfiles_path))))
+
+            if install_scripts:
+                self.setup_items["applications"] = install_scripts
+
+        # Scan stow packages
+        stow_dirs = []
+        exclude_dirs = {"applications", "vscode", "prompts", ".git"}
+        for item in sorted(self.dotfiles_path.iterdir()):
+            if (
+                item.is_dir()
+                and not item.name.startswith(".")
+                and item.name not in exclude_dirs
+            ):
+                stow_dirs.append((item.name.replace("-", " ").title(), item.name))
+
+        if stow_dirs:
+            self.setup_items["stow_packages"] = stow_dirs
+
+    def compose(self) -> ComposeResult:
+        """Create the UI layout."""
+        yield Header(show_clock=True)
+
+        with TabbedContent(initial="tab_overview"):
+            with TabPane("🏠 Overview", id="tab_overview"):
+                with VerticalScroll():
+                    yield Static(
+                        "✨ Dotfiles Setup Tool ✨",
+                        classes="welcome-title",
+                    )
+                    yield Static(
+                        "Welcome! This interactive tool will help you set up your "
+                        "dotfiles and install applications on a new system.\n\n"
+                        "Use the tabs above (or number keys 1-5) to navigate between sections.\n"
+                        "Press 'q' to quit at any time.",
+                        classes="welcome-text",
+                    )
+                    yield SystemInfo(self.dotfiles_path)
+
+            with TabPane("🔧 Prerequisites", id="tab_prereqs"):
+                with VerticalScroll():
+                    yield PrerequisiteCheck()
+
+            with TabPane("📦 Stow Packages", id="tab_stow"):
+                with VerticalScroll():
+                    if "stow_packages" in self.setup_items:
+                        yield SetupCard(
+                            "Configuration Packages",
+                            "Select which configuration packages to stow to $HOME",
+                            self.setup_items["stow_packages"],
+                        )
+                    else:
+                        yield Label(
+                            "⚠️  No stow packages found",
+                            classes="welcome-text",
+                        )
+
+            with TabPane("🚀 Applications", id="tab_apps"):
+                with VerticalScroll():
+                    if "applications" in self.setup_items:
+                        yield SetupCard(
+                            "Application Installers",
+                            "Select which applications to install",
+                            self.setup_items["applications"],
+                        )
+                    else:
+                        yield Label(
+                            "⚠️  No application installers found",
+                            classes="welcome-text",
+                        )
+
+            with TabPane("📋 Execution Log", id="tab_log"):
+                yield ExecutionLog()
+
+        with Horizontal(id="button-bar"):
+            yield Button("🔍 Check Prerequisites", id="btn_check", variant="primary")
+            yield Button("▶️  Run Setup", id="btn_setup", variant="success")
+            yield Button("📦 Stow All", id="btn_stow", variant="default")
+            yield Button("🗑️  Clear Log", id="btn_clear", variant="default")
+
+        yield StatusBar("Ready to configure your dotfiles", id="status_bar")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Called when the app starts."""
+        self.title = "Dotfiles Setup"
+        self.sub_title = f"📁 {self.dotfiles_path}"
+        self._check_prerequisites_silent()
+
+    def _check_prerequisites_silent(self) -> None:
+        """Silently check prerequisites on startup."""
+        tools = [("stow", "#check_stow"), ("curl", "#check_curl")]
+        for tool, checkbox_id in tools:
+            try:
+                subprocess.run(
+                    [tool, "--version"],
+                    capture_output=True,
+                    check=True,
+                    timeout=5,
+                )
+                self.query_one(checkbox_id, Checkbox).value = True
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+
+    def _update_status(self, message: str, status: str = "info") -> None:
+        """Update the status bar."""
+        self.query_one("#status_bar", StatusBar).update_status(message, status)
+
+    @on(Button.Pressed, "#btn_check_prereqs")
+    @on(Button.Pressed, "#btn_check")
+    def check_prerequisites(self) -> None:
+        """Check if required tools are installed."""
+        if self._executing:
+            return
+
+        self._update_status("Checking prerequisites...", "info")
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        log.write("=== Checking Prerequisites ===\n", "bold cyan")
+
+        tools = [("git", "#check_git"), ("stow", "#check_stow"), ("curl", "#check_curl")]
+        all_good = True
+
+        for tool, checkbox_id in tools:
+            try:
+                result = subprocess.run(
+                    [tool, "--version"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=5,
+                )
+                self.query_one(checkbox_id, Checkbox).value = True
+                log.write(f"✓ {tool}: Found\n", "green")
+                version_line = result.stdout.splitlines()[0]
+                log.write(f"  {version_line}\n", "dim")
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                self.query_one(checkbox_id, Checkbox).value = False
+                log.write(f"✗ {tool}: Not found\n", "red")
+                all_good = False
+
+        log.write("\n")
+        if all_good:
+            log.write("✓ All prerequisites satisfied!\n", "bold green")
+            self._update_status("All prerequisites satisfied!", "success")
+        else:
+            log.write("⚠ Some prerequisites are missing\n", "bold yellow")
+            self._update_status("Some prerequisites are missing", "warning")
+
+    @on(Button.Pressed, "#btn_setup")
+    @work(exclusive=True)
+    async def run_setup(self) -> None:
+        """Run the selected setup items."""
+        if self._executing:
+            return
+
+        self._executing = True
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        log.write("=== Starting Setup ===\n", "bold cyan")
+
+        self._update_status("Running setup...", "info")
+
+        # Check stow is available
+        stow_check = self.query_one("#check_stow", Checkbox)
+        if not stow_check.value:
+            log.write("✗ Stow is not installed. Cannot proceed.\n", "red")
+            self._update_status("Setup failed: stow not found", "error")
+            self._executing = False
+            return
+
+        try:
+            # Run application installers
+            if "applications" in self.setup_items:
+                log.write("\n--- Installing Applications ---\n", "bold yellow")
+                for name, script_path in self.setup_items["applications"]:
+                    safe_id = self._make_safe_id(script_path)
+                    checkbox = self.query_one(f"#{safe_id}", Checkbox)
+                    if checkbox.value:
+                        await self._run_script(script_path, name, log)
+
+            # Stow selected packages
+            if "stow_packages" in self.setup_items:
+                log.write("\n--- Stowing Configuration Packages ---\n", "bold yellow")
+                for name, package in self.setup_items["stow_packages"]:
+                    safe_id = self._make_safe_id(package)
+                    checkbox = self.query_one(f"#{safe_id}", Checkbox)
+                    if checkbox.value:
+                        await self._stow_package(package, log)
+
+            log.write("\n=== Setup Complete ===\n", "bold green")
+            self._update_status("Setup completed!", "success")
+        finally:
+            self._executing = False
+
+    async def _run_script(self, script_path: str, name: str, log: ExecutionLog) -> None:
+        """Run an installation script."""
+        full_path = self.dotfiles_path / script_path
+        log.write(f"\n▶ Running: {name}\n", "cyan")
+        log.write(f"  Script: {script_path}\n", "dim")
+
+        try:
+            process = await asyncio.create_subprocess_shell(
+                f"bash {full_path}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(self.dotfiles_path),
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                log.write(f"✓ {name} completed successfully\n", "green")
+                if stdout:
+                    log.write(f"  Output: {stdout.decode()[:200]}\n", "dim")
+            else:
+                log.write(
+                    f"✗ {name} failed (exit code: {process.returncode})\n",
+                    "red",
+                )
+                if stderr:
+                    log.write(f"  Error: {stderr.decode()[:200]}\n", "red")
+        except Exception as e:
+            log.write(f"✗ {name} failed: {str(e)}\n", "red")
+
+    async def _stow_package(self, package: str, log: ExecutionLog) -> None:
+        """Stow a configuration package."""
+        log.write(f"\n▶ Stowing: {package}\n", "cyan")
+
+        try:
+            process = await asyncio.create_subprocess_shell(
+                f"stow --verbose --restow --target={Path.home()} {package}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(self.dotfiles_path),
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                log.write(f"✓ {package} stowed successfully\n", "green")
+            else:
+                log.write(
+                    f"✗ {package} stow failed (exit code: {process.returncode})\n",
+                    "red",
+                )
+                if stderr:
+                    error_msg = stderr.decode()[:300]
+                    log.write(f"  Error: {error_msg}\n", "red")
+        except Exception as e:
+            log.write(f"✗ {package} stow failed: {str(e)}\n", "red")
+
+    @on(Button.Pressed, "#btn_stow")
+    @work(exclusive=True)
+    async def stow_all(self) -> None:
+        """Stow all packages at once."""
+        if self._executing:
+            return
+
+        self._executing = True
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        log.write("=== Stowing All Packages ===\n", "bold cyan")
+
+        self._update_status("Stowing all packages...", "info")
+
+        try:
+            process = await asyncio.create_subprocess_shell(
+                f"stow --verbose --restow --target={Path.home()} */",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(self.dotfiles_path),
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                log.write("✓ All packages stowed successfully\n", "bold green")
+                self._update_status("All packages stowed!", "success")
+            else:
+                log.write(
+                    f"✗ Stow failed (exit code: {process.returncode})\n",
+                    "bold red",
+                )
+                if stderr:
+                    log.write(f"Error: {stderr.decode()}\n", "red")
+                self._update_status("Stow failed", "error")
+        except Exception as e:
+            log.write(f"✗ Stow failed: {str(e)}\n", "red")
+            self._update_status("Stow failed", "error")
+        finally:
+            self._executing = False
+
+    @on(Button.Pressed, "#btn_clear")
+    def clear_log(self) -> None:
+        """Clear the execution log."""
+        log = self.query_one(ExecutionLog)
+        log.clear()
+        self._update_status("Log cleared", "info")
+
+    def action_toggle_dark(self) -> None:
+        """Toggle dark mode."""
+        self.dark = not self.dark
+
+    def action_tab_overview(self) -> None:
+        """Switch to overview tab."""
+        self.query_one(TabbedContent).active = "tab_overview"
+
+    def action_tab_prereqs(self) -> None:
+        """Switch to prerequisites tab."""
+        self.query_one(TabbedContent).active = "tab_prereqs"
+
+    def action_tab_stow(self) -> None:
+        """Switch to stow packages tab."""
+        self.query_one(TabbedContent).active = "tab_stow"
+
+    def action_tab_apps(self) -> None:
+        """Switch to applications tab."""
+        self.query_one(TabbedContent).active = "tab_apps"
+
+    def action_tab_log(self) -> None:
+        """Switch to log tab."""
+        self.query_one(TabbedContent).active = "tab_log"
+
+
+def detect_dotfiles_repo() -> Path | None:
+    """
+    Detect the dotfiles repository location.
+    
+    Returns:
+        Path to dotfiles repo if found, None otherwise.
+    
+    Detection logic:
+    1. Check if we're currently inside a dotfiles repo (look for dotfiles-setup script)
+    2. Check ~/dotfiles if exists
+    3. Return None to trigger clone prompt
+    """
+    # Check if we're running from within the dotfiles repository
+    current_dir = Path.cwd()
+    
+    # Look for markers that indicate this is the dotfiles repo
+    markers = [
+        "dotfiles-setup",  # This script itself
+        ".stow-ignore-list",  # Common dotfiles marker
+        "setup.sh",  # Common dotfiles marker
+    ]
+    
+    # Check current directory and up to 2 parent directories
+    check_dir = current_dir
+    for _ in range(3):
+        for marker in markers:
+            if (check_dir / marker).exists():
+                # Verify it looks like a dotfiles repo
+                if (check_dir / "applications").is_dir() or any(
+                    d.is_dir() and not d.name.startswith(".")
+                    for d in check_dir.iterdir()
+                ):
+                    return check_dir
+        check_dir = check_dir.parent
+        if check_dir == check_dir.parent:  # Reached root
+            break
+    
+    # Check ~/dotfiles as fallback
+    home_dotfiles = Path.home() / "dotfiles"
+    if home_dotfiles.exists() and home_dotfiles.is_dir():
+        return home_dotfiles
+    
+    return None
+
+
+def main():
+    """Main entry point."""
+    # Detect repository location
+    dotfiles_path = detect_dotfiles_repo()
+    
+    if dotfiles_path is None:
+        # No repository found - show clone screen
+        class CloneApp(App):
+            def on_mount(self) -> None:
+                self.push_screen(CloneScreen(), callback=self.handle_clone_result)
+            
+            def handle_clone_result(self, result: Path | None) -> None:
+                if result is None:
+                    self.exit(1)
+                else:
+                    self.exit(0)
+        
+        clone_app = CloneApp()
+        exit_code = clone_app.run()
+        
+        if exit_code != 0:
+            print("\nSetup cancelled.")
+            return 1
+        
+        # Re-detect after cloning
+        dotfiles_path = detect_dotfiles_repo()
+        if dotfiles_path is None:
+            print("\nError: Repository was not cloned successfully.")
+            return 1
+    
+    # Run the main setup app
+    app = DotfilesSetupApp(dotfiles_path)
+    app.run()
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())

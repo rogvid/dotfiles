@@ -182,6 +182,8 @@ class SystemInfo(Static):
             yield Label(str(Path.home()), classes="info-value")
             yield Label("User:", classes="info-label")
             yield Label(os.getenv("USER", "unknown"), classes="info-value")
+            yield Label("Current Dir:", classes="info-label")
+            yield Label(str(Path.cwd()), classes="info-value")
 
 
 class PrerequisiteCheck(Static):

@@ -16,6 +16,7 @@ Interactive TUI for setting up and configuring dotfiles on a new desktop.
 import asyncio
 import os
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
@@ -446,6 +447,7 @@ class DotfilesSetupApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),
         Binding("d", "toggle_dark", "Toggle Dark Mode"),
+        Binding("s", "screenshot", "Screenshot"),
         Binding("1", "tab_overview", "Overview"),
         Binding("2", "tab_prereqs", "Prerequisites"),
         Binding("3", "tab_stow", "Stow Packages"),
@@ -772,7 +774,13 @@ class DotfilesSetupApp(App):
 
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
-        self.dark = not self.dark
+        # Toggle between textual-dark and textual-light
+        self.theme = (
+            "textual-dark" if self.theme == "textual-light" else "textual-light"
+        )
+        mode = "dark" if self.theme == "textual-dark" else "light"
+        self.notify(f"Switched to {mode} mode", severity="information")
+        self._update_status(f"Switched to {mode} mode", "info")
 
     def action_tab_overview(self) -> None:
         """Switch to overview tab."""
@@ -793,6 +801,22 @@ class DotfilesSetupApp(App):
     def action_tab_log(self) -> None:
         """Switch to log tab."""
         self.query_one(TabbedContent).active = "tab_log"
+
+    def action_screenshot(self) -> None:
+        """Take a screenshot of the application."""
+        try:
+            # save_screenshot returns the filename it used
+            saved_path = self.save_screenshot(
+                filename="dotfiles-setup.svg",
+                path=str(Path.cwd()),
+                time_format="%Y%m%d_%H%M%S"
+            )
+            filename = Path(saved_path).name
+            self.notify(f"Screenshot saved: {filename}", severity="information", timeout=5)
+            self._update_status(f"Screenshot saved: {filename}", "success")
+        except Exception as e:
+            self.notify(f"Screenshot failed: {str(e)}", severity="error")
+            self._update_status(f"Screenshot failed: {str(e)}", "error")
 
 
 def detect_dotfiles_repo() -> Path | None:

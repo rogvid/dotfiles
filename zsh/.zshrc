@@ -121,3 +121,4 @@ fi
 # Activate mise
 eval "$(~/.local/bin/mise activate zsh)"
 
+autoload -U compinit; compinit

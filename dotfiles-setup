@@ -682,7 +682,8 @@ class DotfilesSetupApp(App):
             if "applications" in self.setup_items:
                 log.write("\n--- Installing Applications ---\n", "bold yellow")
                 for name, script_path in self.setup_items["applications"]:
-                    checkbox = self.query_one(f"#check_{script_path}", Checkbox)
+                    safe_id = self._make_safe_id(script_path)
+                    checkbox = self.query_one(f"#{safe_id}", Checkbox)
                     if checkbox.value:
                         await self._run_script(script_path, name, log)
 
@@ -690,7 +691,8 @@ class DotfilesSetupApp(App):
             if "stow_packages" in self.setup_items:
                 log.write("\n--- Stowing Configuration Packages ---\n", "bold yellow")
                 for name, package in self.setup_items["stow_packages"]:
-                    checkbox = self.query_one(f"#check_{package}", Checkbox)
+                    safe_id = self._make_safe_id(package)
+                    checkbox = self.query_one(f"#{safe_id}", Checkbox)
                     if checkbox.value:
                         await self._stow_package(package, log)
 

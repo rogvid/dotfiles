@@ -1,4 +1,7 @@
 #!/usr/bin/env -S uv run --script
+# vim: set ft=python:
+# -*- mode: python -*-
+# language: python
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
@@ -49,8 +52,6 @@ def record_audio(duration, samplerate, channels, device) -> str:
         logger.error(f"Error during recording: {e}")
 
     return filename
-
-
 
 
 def transcribe(
@@ -116,18 +117,11 @@ def main():
         default=None,
         help="Optional location to store the recorded audio.",
     )
-    parser.add_argument(
-        "--convert",
-        action="store_true",
-        help="Optional way to convert a huggingface ASR model to be used for faster-whisper"
-    )
 
     args = parser.parse_args()
 
     if args.list_devices:
         list_input_devices()
-    elif args.convert:
-        convert(args.model)
     else:
         recording_file = record_audio(
             duration=args.time,

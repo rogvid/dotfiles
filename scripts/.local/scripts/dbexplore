@@ -1,0 +1,863 @@
+#!/usr/bin/env -S uv run --script
+# vim: set ft=python:
+# -*- mode: python -*-
+
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "pyodbc>=5.0.0",
+#   "pymysql>=1.1.0",
+#   "typer>=0.15.2",
+#   "rich>=13.9.4",
+# ]
+# ///
+"""Database Structure Explorer for SQL Server and MySQL."""
+
+import json
+import os
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Annotated, Any, Optional
+
+import typer
+from rich import print as rprint
+from rich.console import Console
+from rich.table import Table
+
+app = typer.Typer(help="Database Structure Explorer for SQL Server and MySQL")
+console = Console()
+
+# Config file location for user-defined profiles
+CONFIG_FILE = Path.home() / ".config" / "db-explorer" / "profiles.json"
+
+# Default ports for database types
+DEFAULT_PORTS = {
+    "mssql": 1433,
+    "mysql": 3306,
+}
+
+
+class DbType(str, Enum):
+    """Supported database types."""
+
+    MSSQL = "mssql"
+    MYSQL = "mysql"
+
+
+@dataclass
+class TableInfo:
+    """Table information."""
+
+    schema: str
+    name: str
+    row_count: int
+
+
+@dataclass
+class ColumnInfo:
+    """Column information."""
+
+    name: str
+    data_type: str
+    max_length: int | None
+    is_nullable: str
+    default: str | None
+    is_primary_key: str
+    is_foreign_key: str
+
+
+@dataclass
+class ForeignKeyInfo:
+    """Foreign key information."""
+
+    name: str
+    column: str
+    ref_schema: str
+    ref_table: str
+    ref_column: str
+
+
+class DatabaseAdapter(ABC):
+    """Abstract base class for database adapters."""
+
+    @abstractmethod
+    def connect(self, server: str, port: int, database: str, username: str, password: str) -> Any:
+        """Connect to database and return connection object."""
+        pass
+
+    @abstractmethod
+    def get_all_tables(self, connection: Any) -> list[TableInfo]:
+        """Get all tables with row counts."""
+        pass
+
+    @abstractmethod
+    def get_table_structure(self, connection: Any, schema: str, table: str) -> list[ColumnInfo]:
+        """Get detailed structure of a table."""
+        pass
+
+    @abstractmethod
+    def get_foreign_keys(self, connection: Any, schema: str, table: str) -> list[ForeignKeyInfo]:
+        """Get foreign key relationships."""
+        pass
+
+    @abstractmethod
+    def close(self, connection: Any) -> None:
+        """Close the database connection."""
+        pass
+
+
+class MSSQLAdapter(DatabaseAdapter):
+    """Microsoft SQL Server adapter."""
+
+    def connect(self, server: str, port: int, database: str, username: str, password: str) -> Any:
+        """Connect to MSSQL database."""
+        import pyodbc
+
+        conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER={server},{port};"
+            f"DATABASE={database};"
+            f"UID={username};"
+            f"PWD={password};"
+            f"TrustServerCertificate=yes;"
+            f"Trusted_Connection=no;"
+        )
+        return pyodbc.connect(conn_str, timeout=15)
+
+    def get_all_tables(self, connection: Any) -> list[TableInfo]:
+        """Get all tables with row counts."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            s.name as schema_name,
+            t.name as table_name,
+            SUM(p.rows) as row_count
+        FROM sys.tables t
+        INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+        INNER JOIN sys.partitions p ON t.object_id = p.object_id
+        WHERE p.index_id IN (0,1)
+        GROUP BY s.name, t.name
+        ORDER BY s.name, t.name
+        """
+        cursor.execute(query)
+        tables = [TableInfo(schema=row[0], name=row[1], row_count=row[2]) for row in cursor.fetchall()]
+        cursor.close()
+        return tables
+
+    def get_table_structure(self, connection: Any, schema: str, table: str) -> list[ColumnInfo]:
+        """Get detailed structure of a table."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            c.COLUMN_NAME,
+            c.DATA_TYPE,
+            c.CHARACTER_MAXIMUM_LENGTH,
+            c.IS_NULLABLE,
+            c.COLUMN_DEFAULT,
+            CASE
+                WHEN pk.COLUMN_NAME IS NOT NULL THEN 'YES'
+                ELSE 'NO'
+            END as IS_PRIMARY_KEY,
+            CASE
+                WHEN fk.COLUMN_NAME IS NOT NULL THEN 'YES'
+                ELSE 'NO'
+            END as IS_FOREIGN_KEY
+        FROM INFORMATION_SCHEMA.COLUMNS c
+        LEFT JOIN (
+            SELECT ku.TABLE_SCHEMA, ku.TABLE_NAME, ku.COLUMN_NAME
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+            INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku
+                ON tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                AND tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
+        ) pk ON c.TABLE_SCHEMA = pk.TABLE_SCHEMA
+            AND c.TABLE_NAME = pk.TABLE_NAME
+            AND c.COLUMN_NAME = pk.COLUMN_NAME
+        LEFT JOIN (
+            SELECT ku.TABLE_SCHEMA, ku.TABLE_NAME, ku.COLUMN_NAME
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+            INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku
+                ON tc.CONSTRAINT_TYPE = 'FOREIGN KEY'
+                AND tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
+        ) fk ON c.TABLE_SCHEMA = fk.TABLE_SCHEMA
+            AND c.TABLE_NAME = fk.TABLE_NAME
+            AND c.COLUMN_NAME = fk.COLUMN_NAME
+        WHERE c.TABLE_SCHEMA = ? AND c.TABLE_NAME = ?
+        ORDER BY c.ORDINAL_POSITION
+        """
+        cursor.execute(query, (schema, table))
+        columns = [
+            ColumnInfo(
+                name=row[0],
+                data_type=row[1],
+                max_length=row[2],
+                is_nullable=row[3],
+                default=row[4],
+                is_primary_key=row[5],
+                is_foreign_key=row[6],
+            )
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return columns
+
+    def get_foreign_keys(self, connection: Any, schema: str, table: str) -> list[ForeignKeyInfo]:
+        """Get foreign key relationships."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            fk.name AS fk_name,
+            COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name,
+            OBJECT_SCHEMA_NAME(fk.referenced_object_id) AS referenced_schema,
+            OBJECT_NAME(fk.referenced_object_id) AS referenced_table,
+            COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS referenced_column
+        FROM sys.foreign_keys AS fk
+        INNER JOIN sys.foreign_key_columns AS fkc
+            ON fk.object_id = fkc.constraint_object_id
+        WHERE OBJECT_SCHEMA_NAME(fk.parent_object_id) = ?
+            AND OBJECT_NAME(fk.parent_object_id) = ?
+        """
+        cursor.execute(query, (schema, table))
+        fks = [
+            ForeignKeyInfo(
+                name=row[0],
+                column=row[1],
+                ref_schema=row[2],
+                ref_table=row[3],
+                ref_column=row[4],
+            )
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return fks
+
+    def close(self, connection: Any) -> None:
+        """Close the database connection."""
+        connection.close()
+
+
+class MySQLAdapter(DatabaseAdapter):
+    """MySQL adapter."""
+
+    def connect(self, server: str, port: int, database: str, username: str, password: str) -> Any:
+        """Connect to MySQL database."""
+        import pymysql
+
+        return pymysql.connect(
+            host=server,
+            port=port,
+            user=username,
+            password=password,
+            database=database,
+            connect_timeout=15,
+            cursorclass=pymysql.cursors.Cursor,
+        )
+
+    def get_all_tables(self, connection: Any) -> list[TableInfo]:
+        """Get all tables with row counts."""
+        cursor = connection.cursor()
+        # In MySQL, the "schema" is effectively the database name
+        # We use TABLE_SCHEMA which equals the database we connected to
+        query = """
+        SELECT
+            TABLE_SCHEMA as schema_name,
+            TABLE_NAME as table_name,
+            TABLE_ROWS as row_count
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_TYPE = 'BASE TABLE'
+        ORDER BY TABLE_NAME
+        """
+        cursor.execute(query)
+        tables = [TableInfo(schema=row[0], name=row[1], row_count=row[2] or 0) for row in cursor.fetchall()]
+        cursor.close()
+        return tables
+
+    def get_table_structure(self, connection: Any, schema: str, table: str) -> list[ColumnInfo]:
+        """Get detailed structure of a table."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            c.COLUMN_NAME,
+            c.DATA_TYPE,
+            c.CHARACTER_MAXIMUM_LENGTH,
+            c.IS_NULLABLE,
+            c.COLUMN_DEFAULT,
+            CASE
+                WHEN pk.COLUMN_NAME IS NOT NULL THEN 'YES'
+                ELSE 'NO'
+            END as IS_PRIMARY_KEY,
+            CASE
+                WHEN fk.COLUMN_NAME IS NOT NULL THEN 'YES'
+                ELSE 'NO'
+            END as IS_FOREIGN_KEY
+        FROM information_schema.COLUMNS c
+        LEFT JOIN (
+            SELECT kcu.TABLE_SCHEMA, kcu.TABLE_NAME, kcu.COLUMN_NAME
+            FROM information_schema.TABLE_CONSTRAINTS tc
+            INNER JOIN information_schema.KEY_COLUMN_USAGE kcu
+                ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+                AND tc.TABLE_NAME = kcu.TABLE_NAME
+            WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+        ) pk ON c.TABLE_SCHEMA = pk.TABLE_SCHEMA
+            AND c.TABLE_NAME = pk.TABLE_NAME
+            AND c.COLUMN_NAME = pk.COLUMN_NAME
+        LEFT JOIN (
+            SELECT kcu.TABLE_SCHEMA, kcu.TABLE_NAME, kcu.COLUMN_NAME
+            FROM information_schema.TABLE_CONSTRAINTS tc
+            INNER JOIN information_schema.KEY_COLUMN_USAGE kcu
+                ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+                AND tc.TABLE_NAME = kcu.TABLE_NAME
+            WHERE tc.CONSTRAINT_TYPE = 'FOREIGN KEY'
+        ) fk ON c.TABLE_SCHEMA = fk.TABLE_SCHEMA
+            AND c.TABLE_NAME = fk.TABLE_NAME
+            AND c.COLUMN_NAME = fk.COLUMN_NAME
+        WHERE c.TABLE_SCHEMA = %s AND c.TABLE_NAME = %s
+        ORDER BY c.ORDINAL_POSITION
+        """
+        cursor.execute(query, (schema, table))
+        columns = [
+            ColumnInfo(
+                name=row[0],
+                data_type=row[1],
+                max_length=row[2],
+                is_nullable=row[3],
+                default=row[4],
+                is_primary_key=row[5],
+                is_foreign_key=row[6],
+            )
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return columns
+
+    def get_foreign_keys(self, connection: Any, schema: str, table: str) -> list[ForeignKeyInfo]:
+        """Get foreign key relationships."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            kcu.CONSTRAINT_NAME AS fk_name,
+            kcu.COLUMN_NAME AS column_name,
+            kcu.REFERENCED_TABLE_SCHEMA AS referenced_schema,
+            kcu.REFERENCED_TABLE_NAME AS referenced_table,
+            kcu.REFERENCED_COLUMN_NAME AS referenced_column
+        FROM information_schema.KEY_COLUMN_USAGE kcu
+        INNER JOIN information_schema.TABLE_CONSTRAINTS tc
+            ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+            AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA
+            AND kcu.TABLE_NAME = tc.TABLE_NAME
+        WHERE tc.CONSTRAINT_TYPE = 'FOREIGN KEY'
+            AND kcu.TABLE_SCHEMA = %s
+            AND kcu.TABLE_NAME = %s
+        """
+        cursor.execute(query, (schema, table))
+        fks = [
+            ForeignKeyInfo(
+                name=row[0],
+                column=row[1],
+                ref_schema=row[2],
+                ref_table=row[3],
+                ref_column=row[4],
+            )
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return fks
+
+    def close(self, connection: Any) -> None:
+        """Close the database connection."""
+        connection.close()
+
+
+def get_adapter(db_type: DbType) -> DatabaseAdapter:
+    """Get the appropriate database adapter."""
+    if db_type == DbType.MSSQL:
+        return MSSQLAdapter()
+    elif db_type == DbType.MYSQL:
+        return MySQLAdapter()
+    else:
+        raise ValueError(f"Unsupported database type: {db_type}")
+
+
+def detect_db_type(server: str, port: int | None) -> DbType:
+    """Auto-detect database type from server string or port."""
+    # Check if server contains port (e.g., "localhost:3306")
+    if ":" in server:
+        _, port_str = server.rsplit(":", 1)
+        try:
+            port = int(port_str)
+        except ValueError:
+            pass
+
+    # Detect based on port
+    if port == 3306:
+        return DbType.MYSQL
+    elif port == 1433 or port is None:
+        return DbType.MSSQL
+
+    # Default to MSSQL
+    return DbType.MSSQL
+
+
+def parse_server_port(server: str, port: int | None) -> tuple[str, int | None]:
+    """Parse server string and extract port if embedded."""
+    if ":" in server:
+        host, port_str = server.rsplit(":", 1)
+        try:
+            return host, int(port_str)
+        except ValueError:
+            pass
+    return server, port
+
+
+def load_user_profiles() -> dict[str, dict[str, Any]]:
+    """Load user-defined profiles from config file."""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not load profiles from {CONFIG_FILE}: {e}[/yellow]")
+    return {}
+
+
+def get_all_profiles() -> dict[str, dict[str, Any]]:
+    """Get all profiles (user-defined)."""
+    return load_user_profiles()
+
+
+def validate_output_path(output: Path | None, overwrite: bool) -> Path | None:
+    """Validate and prepare output path."""
+    if not output:
+        return None
+
+    output_path = Path(output).resolve()
+
+    # Check if file exists and overwrite flag
+    if output_path.exists() and not overwrite:
+        rprint(f"[red]Output file already exists: {output_path}[/red]")
+        rprint("[yellow]Use --overwrite to replace the existing file[/yellow]")
+        raise typer.Exit(1)
+
+    # Create parent directories if they don't exist
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
+def build_config(
+    profile: str | None,
+    server: str | None,
+    port: int | None,
+    database: str | None,
+    username: str | None,
+    password: str | None,
+    db_type: DbType | None,
+) -> dict[str, Any]:
+    """Build configuration from profile and CLI options."""
+    profiles = get_all_profiles()
+
+    if profile:
+        if profile not in profiles:
+            rprint(f"[red]Unknown profile: {profile}[/red]")
+            rprint(f"[yellow]Available profiles: {', '.join(profiles.keys())}[/yellow]")
+            raise typer.Exit(1)
+
+        config = profiles[profile].copy()
+        rprint(f"[cyan]Using profile: {profile}[/cyan]")
+    else:
+        config: dict[str, Any] = {
+            "server": "",
+            "port": None,
+            "database": "",
+            "username": "",
+            "password": "",
+            "type": None,
+        }
+
+    # Override with explicit CLI options
+    overrides = {
+        "server": server,
+        "port": port,
+        "database": database,
+        "username": username,
+        "password": password,
+        "type": db_type.value if db_type else None,
+    }
+    for key, value in overrides.items():
+        if value is not None:
+            config[key] = value
+
+    # Check for password in environment variable
+    if not config.get("password"):
+        config["password"] = os.environ.get("DB_PASSWORD", "")
+
+    # Parse server:port if embedded in server string
+    config["server"], parsed_port = parse_server_port(config.get("server", ""), config.get("port"))
+    if parsed_port:
+        config["port"] = parsed_port
+
+    return config
+
+
+def resolve_db_type(config: dict[str, Any]) -> DbType:
+    """Resolve database type from config, auto-detecting if needed."""
+    if config.get("type"):
+        return DbType(config["type"])
+
+    final_db_type = detect_db_type(config.get("server", ""), config.get("port"))
+    rprint(f"[dim]Auto-detected database type: {final_db_type.value}[/dim]")
+    return final_db_type
+
+
+def validate_config(config: dict[str, Any]) -> None:
+    """Validate that all required configuration fields are present."""
+    missing = []
+    if not config.get("server"):
+        missing.append("server")
+    if not config.get("database"):
+        missing.append("database")
+    if not config.get("username"):
+        missing.append("username")
+    if not config.get("password"):
+        missing.append("password (use --password or set DB_PASSWORD env var)")
+
+    if missing:
+        rprint(f"[red]Missing required configuration: {', '.join(missing)}[/red]")
+        raise typer.Exit(1)
+
+
+def explore_database(
+    server: str,
+    port: int,
+    database: str,
+    username: str,
+    password: str,
+    db_type: DbType,
+    output_path: Path | None = None,
+):
+    """Main database exploration logic."""
+    rprint(f"[bold]Exploring database:[/bold] {database} on {server}:{port}")
+    rprint(f"[bold]Database type:[/bold] {db_type.value}")
+    rprint("=" * 80)
+
+    # Get appropriate adapter
+    adapter = get_adapter(db_type)
+
+    # Connect
+    rprint("Connecting to database...")
+    try:
+        conn = adapter.connect(server, port, database, username, password)
+        rprint("[green]Connected successfully[/green]\n")
+    except Exception as e:
+        rprint(f"[red]Failed to connect: {e}[/red]")
+        raise typer.Exit(1)
+
+    # Get all tables
+    rprint("Fetching all tables...")
+    tables = adapter.get_all_tables(conn)
+    rprint(f"[green]Found {len(tables)} tables[/green]\n")
+
+    # Display summary using Rich table
+    table_display = Table(title="Tables Overview")
+    table_display.add_column("Schema", style="cyan")
+    table_display.add_column("Table", style="green")
+    table_display.add_column("Row Count", justify="right", style="yellow")
+
+    for tbl in tables:
+        table_display.add_row(tbl.schema, tbl.name, f"{tbl.row_count:,}")
+
+    console.print(table_display)
+
+    rprint("\n" + "=" * 80)
+    rprint("Fetching detailed structure for each table...")
+    rprint("This may take a moment...\n")
+
+    # Get detailed structure for each table
+    tables_info = []
+    for i, tbl in enumerate(tables, 1):
+        rprint(f"  [{i}/{len(tables)}] Processing {tbl.schema}.{tbl.name}...", end="\r")
+
+        try:
+            columns = adapter.get_table_structure(conn, tbl.schema, tbl.name)
+            foreign_keys = adapter.get_foreign_keys(conn, tbl.schema, tbl.name)
+
+            tables_info.append(
+                {
+                    "schema": tbl.schema,
+                    "table": tbl.name,
+                    "row_count": tbl.row_count,
+                    "columns": columns,
+                    "foreign_keys": foreign_keys,
+                }
+            )
+        except Exception as e:
+            rprint(f"\n  [yellow]Warning: Could not get structure for {tbl.schema}.{tbl.name}: {e}[/yellow]")
+
+    rprint(f"\n[green]Processed {len(tables_info)} tables[/green]")
+
+    # Determine output filename
+    if output_path:
+        json_filename = output_path
+    else:
+        json_filename = Path(f"{database}_structure.json")
+
+    # Create JSON data
+    json_data = []
+    for info in tables_info:
+        json_data.append(
+            {
+                "schema": info["schema"],
+                "table": info["table"],
+                "row_count": info["row_count"],
+                "columns": [
+                    {
+                        "name": col.name,
+                        "type": col.data_type,
+                        "max_length": col.max_length,
+                        "nullable": col.is_nullable,
+                        "default": col.default,
+                        "is_primary_key": col.is_primary_key,
+                        "is_foreign_key": col.is_foreign_key,
+                    }
+                    for col in info["columns"]
+                ],
+                "foreign_keys": [
+                    {
+                        "name": fk.name,
+                        "column": fk.column,
+                        "references_schema": fk.ref_schema,
+                        "references_table": fk.ref_table,
+                        "references_column": fk.ref_column,
+                    }
+                    for fk in info["foreign_keys"]
+                ],
+            }
+        )
+
+    with open(json_filename, "w", encoding="utf-8") as f:
+        json.dump(json_data, f, indent=2, default=str)
+
+    rprint(f"\n[green]Exported to: {json_filename}[/green]")
+
+    # Print some statistics
+    rprint("\n" + "=" * 80)
+    rprint("[bold]SUMMARY:[/bold]")
+    rprint("=" * 80)
+    rprint(f"Total tables: {len(tables_info)}")
+
+    total_rows = sum(info["row_count"] for info in tables_info)
+    rprint(f"Total rows: {total_rows:,}")
+
+    total_columns = sum(len(info["columns"]) for info in tables_info)
+    rprint(f"Total columns: {total_columns}")
+
+    total_fks = sum(len(info["foreign_keys"]) for info in tables_info)
+    rprint(f"Total foreign keys: {total_fks}")
+
+    # Show tables with most rows
+    rprint("\n[bold]Tables with most rows:[/bold]")
+    sorted_by_rows = sorted(tables_info, key=lambda x: x["row_count"], reverse=True)[:10]
+    for info in sorted_by_rows:
+        rprint(f"  {info['schema']}.{info['table']:40} {info['row_count']:>10,} rows")
+
+    adapter.close(conn)
+    rprint("\n[green]Done![/green]")
+
+
+@app.command()
+def explore(
+    profile: Annotated[
+        Optional[str],
+        typer.Option("--profile", "-p", help="Named profile to use (e.g., transpas-e3-admin)"),
+    ] = None,
+    server: Annotated[
+        Optional[str],
+        typer.Option("--server", "-s", help="Database server address"),
+    ] = None,
+    port: Annotated[
+        Optional[int],
+        typer.Option("--port", help="Database port (default: 1433 for MSSQL, 3306 for MySQL)"),
+    ] = None,
+    database: Annotated[
+        Optional[str],
+        typer.Option("--database", "-d", help="Database name"),
+    ] = None,
+    username: Annotated[
+        Optional[str],
+        typer.Option("--username", "-u", help="Database username"),
+    ] = None,
+    password: Annotated[
+        Optional[str],
+        typer.Option("--password", "-P", help="Database password (or set DB_PASSWORD env var)"),
+    ] = None,
+    db_type: Annotated[
+        Optional[DbType],
+        typer.Option(
+            "--type",
+            "-t",
+            help="Database type (auto-detected from port if not specified)",
+        ),
+    ] = None,
+    output: Annotated[
+        Optional[Path],
+        typer.Option("--output", "-o", help="Output file path for JSON export"),
+    ] = None,
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Overwrite output file if it exists"),
+    ] = False,
+):
+    """Explore a database structure and export to JSON.
+
+    Supports both Microsoft SQL Server and MySQL databases.
+    You can either use a named profile or specify connection details directly.
+    Profile settings can be overridden with explicit options.
+
+    The database type is auto-detected from the port if not specified:
+    - Port 1433 (default) -> MSSQL
+    - Port 3306 -> MySQL
+
+    Examples:
+        # Use a named profile
+        dbexplore explore --profile transpas-e3-admin
+
+        # Use explicit connection details (MSSQL)
+        dbexplore explore -s localhost -d mydb -u sa -P mypassword
+
+        # Connect to MySQL
+        dbexplore explore -s localhost --port 3306 -d mydb -u root -P mypassword
+        dbexplore explore -s localhost:3306 -d mydb -u root -P mypassword
+        dbexplore explore -s localhost -d mydb -u root -P mypassword -t mysql
+
+        # Specify custom output path
+        dbexplore explore -p myprofile -o ./exports/mydb.json
+
+        # Overwrite existing file
+        dbexplore explore -p myprofile -o ./exports/mydb.json --overwrite
+    """
+    output_path = validate_output_path(output, overwrite)
+
+    config = build_config(profile, server, port, database, username, password, db_type)
+
+    final_db_type = resolve_db_type(config)
+
+    # Set default port based on database type if not specified
+    if not config.get("port"):
+        config["port"] = DEFAULT_PORTS[final_db_type.value]
+
+    validate_config(config)
+
+    explore_database(
+        server=config["server"],
+        port=config["port"],
+        database=config["database"],
+        username=config["username"],
+        password=config["password"],
+        db_type=final_db_type,
+        output_path=output_path,
+    )
+
+
+@app.command()
+def profiles():
+    """List all available profiles."""
+    all_profiles = get_all_profiles()
+
+    if not all_profiles:
+        rprint("[yellow]No profiles configured yet.[/yellow]")
+        rprint(f"[dim]Use 'add-profile' to create one, or manually edit: {CONFIG_FILE}[/dim]")
+        return
+
+    table = Table(title="Available Profiles")
+    table.add_column("Name", style="cyan")
+    table.add_column("Type", style="magenta")
+    table.add_column("Server", style="green")
+    table.add_column("Port", style="blue")
+    table.add_column("Database", style="yellow")
+    table.add_column("Username", style="white")
+
+    for name, config in all_profiles.items():
+        table.add_row(
+            name,
+            config.get("type", "auto"),
+            config.get("server", ""),
+            str(config.get("port", "auto")),
+            config.get("database", ""),
+            config.get("username", ""),
+        )
+
+    console.print(table)
+    rprint(f"\n[dim]Config file location: {CONFIG_FILE}[/dim]")
+
+
+@app.command()
+def add_profile(
+    name: Annotated[str, typer.Argument(help="Profile name")],
+    server: Annotated[str, typer.Option("--server", "-s", help="Database server")] = "",
+    port: Annotated[
+        Optional[int],
+        typer.Option("--port", help="Database port"),
+    ] = None,
+    database: Annotated[str, typer.Option("--database", "-d", help="Database name")] = "",
+    username: Annotated[str, typer.Option("--username", "-u", help="Username")] = "",
+    password: Annotated[str, typer.Option("--password", "-P", help="Password")] = "",
+    db_type: Annotated[
+        Optional[DbType],
+        typer.Option("--type", "-t", help="Database type (mssql or mysql)"),
+    ] = None,
+):
+    """Add or update a profile in the user config file."""
+    # Load existing profiles
+    user_profiles = load_user_profiles()
+
+    # Build profile config
+    profile_config: dict[str, Any] = {
+        "server": server,
+        "database": database,
+        "username": username,
+        "password": password,
+    }
+
+    # Only add port/type if specified
+    if port:
+        profile_config["port"] = port
+    if db_type:
+        profile_config["type"] = db_type.value
+
+    # Add/update profile
+    user_profiles[name] = profile_config
+
+    # Ensure config directory exists
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    # Save profiles
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(user_profiles, f, indent=2)
+
+    rprint(f"[green]Profile '{name}' saved to {CONFIG_FILE}[/green]")
+
+
+@app.command()
+def remove_profile(
+    name: Annotated[str, typer.Argument(help="Profile name to remove")],
+):
+    """Remove a profile from the user config file."""
+    user_profiles = load_user_profiles()
+
+    if name not in user_profiles:
+        rprint(f"[red]Profile '{name}' not found[/red]")
+        raise typer.Exit(1)
+
+    del user_profiles[name]
+
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(user_profiles, f, indent=2)
+
+    rprint(f"[green]Profile '{name}' removed[/green]")
+
+
+if __name__ == "__main__":
+    app()

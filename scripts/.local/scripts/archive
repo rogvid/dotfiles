@@ -1,37 +1,75 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Help message
 display_help() {
-    echo "Usage: $0 source destination"
-    echo
-    echo "Compress the source directory, move the archive to the destination directory, and delete source."
-    echo
-    echo "Options:"
-    echo "  source       The directory to be compressed"
-    echo "  destination  The directory where the compressed file will be moved"
-    exit 1
+  echo "Usage: $0 [options] source destination"
+  echo
+  echo "Compress the source directory, move the archive to the destination directory, and delete source."
+  echo
+  echo "Arguments:"
+  echo "  source       The directory to be compressed"
+  echo "  destination  The directory where the compressed file will be moved"
+  echo
+  echo "Options:"
+  echo "  -q, --quiet           Suppress output from find and remove operations"
+  echo "  -e, --exclude FOLDER  Additional folder pattern to remove (can be used multiple times)"
+  echo "  -h, --help            Show this help message"
+  exit 1
 }
 
-# Check if the right number of arguments are provided
-if [ $# -ne 2 ]; then
-    echo "Error: Invalid number of arguments."
+# Initialize variables
+QUIET=false
+EXTRA_EXCLUDES=()
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  -q | --quiet)
+    QUIET=true
+    shift
+    ;;
+  -e | --exclude)
+    if [[ -z "${2:-}" ]]; then
+      echo "Error: --exclude requires a folder pattern argument."
+      exit 1
+    fi
+    EXTRA_EXCLUDES+=("$2")
+    shift 2
+    ;;
+  -h | --help)
     display_help
+    ;;
+  -*)
+    echo "Error: Unknown option '$1'"
+    display_help
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+
+# Check if the right number of arguments are provided
+if [[ $# -ne 2 ]]; then
+  echo "Error: Invalid number of arguments."
+  display_help
 fi
 
-# Assign arguments to variables
-SOURCE=$1
-DESTINATION=$2
+# Assign arguments to variables and resolve to absolute paths
+SOURCE="$(realpath "$1")"
+DESTINATION="$(realpath "$2")"
 
 # Check if source directory exists
-if [ ! -d "$SOURCE" ]; then
-    echo "Error: Source directory '$SOURCE' does not exist."
-    exit 1
+if [[ ! -d "$SOURCE" ]]; then
+  echo "Error: Source directory '$SOURCE' does not exist."
+  exit 1
 fi
 
 # Check if destination directory exists
-if [ ! -d "$DESTINATION" ]; then
-    echo "Error: Destination directory '$DESTINATION' does not exist."
-    exit 1
+if [[ ! -d "$DESTINATION" ]]; then
+  echo "Error: Destination directory '$DESTINATION' does not exist."
+  exit 1
 fi
 
 # Create a timestamped archive name
@@ -39,15 +77,62 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 ARCHIVE_NAME="$(basename "$SOURCE")_$TIMESTAMP.tar.gz"
 
 # Define patterns for folders to remove
-FOLDERS_TO_REMOVE=(".mypy_cache" ".pixi" ".direnv" ".venv" "venv" "__pycache__", "node_modules")
+FOLDERS_TO_REMOVE=(
+  # Python
+  ".mypy_cache"
+  ".pytest_cache"
+  ".ruff_cache"
+  "__pycache__"
+  ".venv"
+  "venv"
+  ".eggs"
+  "*.egg-info"
+  ".tox"
+  ".nox"
+  ".pixi"
+  # JavaScript/Node
+  "node_modules"
+  ".npm"
+  ".pnpm"
+  ".yarn"
+  # Build artifacts
+  "dist"
+  "build"
+  ".next"
+  ".nuxt"
+  ".output"
+  ".turbo"
+  # IDE/Editor
+  ".idea"
+  ".vscode"
+  # Environment/Tools
+  ".direnv"
+  ".devenv"
+  ".cache"
+  # Rust
+  "target"
+  # Go
+  "vendor"
+)
+
+# Add extra excludes from command line
+FOLDERS_TO_REMOVE+=("${EXTRA_EXCLUDES[@]}")
 
 # Remove unwanted folders within the source directory
 for folder in "${FOLDERS_TO_REMOVE[@]}"; do
-    find "$SOURCE" -type d -name "$folder" -prune -exec rm -rf {} \;
+  if [[ "$QUIET" == true ]]; then
+    find "$SOURCE" -type d -name "$folder" -prune -exec rm -rf {} \; 2>/dev/null || true
+  else
+    find "$SOURCE" -type d -name "$folder" -prune -print -exec rm -rf {} \;
+  fi
 done
 
 # Compress the source directory
-tar --remove-files -czvf "$ARCHIVE_NAME" -C "$(dirname "$SOURCE")" "$(basename "$SOURCE")"
+if [[ "$QUIET" == true ]]; then
+  tar --remove-files -czf "$ARCHIVE_NAME" -C "$(dirname "$SOURCE")" "$(basename "$SOURCE")"
+else
+  tar --remove-files -czvf "$ARCHIVE_NAME" -C "$(dirname "$SOURCE")" "$(basename "$SOURCE")"
+fi
 
 # Move the archive to the destination directory
 mv "$ARCHIVE_NAME" "$DESTINATION"

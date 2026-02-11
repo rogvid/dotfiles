@@ -3,8 +3,17 @@
 if [[ $# -eq 1 ]]; then
   selected=$1
 else
-  # selected=$(find ~/Flowtale/projects/teledyne ~/Projects -mindepth 1 -maxdepth 2 -type d | fzf)
-  selected=$(find ~/work/Flowtale/projects/ ~/personal -name .git -maxdepth 4 -type d -prune -exec dirname {} \; | fzf --preview 'tree -C {} | head -200')
+  # Find git repos in projects/ folders
+  projects=$(find ~/work/*/projects ~/personal/projects -name .git -maxdepth 2 -type d -prune -exec dirname {} \; 2>/dev/null)
+  
+  # Find worktrees and prefix with [WT]
+  worktrees=$(find ~/work/*/worktrees ~/personal/worktrees -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's/^/[WT] /')
+  
+  # Combine both lists and use fzf
+  selected=$(printf "%s\n%s" "$projects" "$worktrees" | fzf --preview 'tree -C $(echo {} | sed "s/^\[WT\] //") | head -200')
+  
+  # Remove [WT] prefix if present
+  selected=$(echo "$selected" | sed 's/^\[WT\] //')
 fi
 
 if [[ -z $selected ]]; then

@@ -1,0 +1,17 @@
+[settings]
+idiomatic_version_file_enable_tools = ["python"]
+experimental = true
+
+[tools]
+doppler = "latest"
+glow = "latest"
+jj = "latest"
+node = "latest"
+"npm:agent-browser" = "latest"
+prek = "latest"
+terraform = "latest"
+"ubi:anchore/grype" = "latest"
+"ubi:anchore/syft" = "latest"
+"ubi:sxyazi/yazi" = "latest"
+yazi = "latest"
+terragrunt = "latest"

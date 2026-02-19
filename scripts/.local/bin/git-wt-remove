@@ -64,8 +64,9 @@ done
 # Validate environment
 validate_in_git_repo
 
-# Get repository information
-REPO_ROOT="$(get_repo_root)"
+# Get repository information — use git-common-dir to always resolve to the main repo,
+# even when running from inside a worktree
+REPO_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 MAIN_BRANCH="$(get_main_branch)"
 
 # Function to get worktree info for interactive selection
@@ -73,29 +74,24 @@ get_worktree_list() {
   declare -a WORKTREES_DATA=()
   CURRENT_WT=""
   CURRENT_BRANCH_WT=""
-  IS_MAIN_REPO=false
   
   while IFS= read -r line; do
     if [[ "${line}" =~ ^worktree\ (.+)$ ]]; then
       # Save previous worktree if it's not the main repo
-      if [[ -n "${CURRENT_WT}" ]] && [[ "${IS_MAIN_REPO}" == false ]] && [[ "${CURRENT_WT}" != "${REPO_ROOT}" ]]; then
+      if [[ -n "${CURRENT_WT}" ]] && [[ "${CURRENT_WT}" != "${REPO_ROOT}" ]]; then
         WORKTREES_DATA+=("${CURRENT_WT}|${CURRENT_BRANCH_WT}")
       fi
       
       CURRENT_WT="${BASH_REMATCH[1]}"
       CURRENT_BRANCH_WT=""
-      IS_MAIN_REPO=false
       
     elif [[ "${line}" =~ ^branch\ refs/heads/(.+)$ ]]; then
       CURRENT_BRANCH_WT="${BASH_REMATCH[1]}"
-      
-    elif [[ "${line}" =~ ^bare$ ]]; then
-      IS_MAIN_REPO=true
     fi
   done < <(git worktree list --porcelain)
   
   # Save last worktree if it's not the main repo
-  if [[ -n "${CURRENT_WT}" ]] && [[ "${IS_MAIN_REPO}" == false ]] && [[ "${CURRENT_WT}" != "${REPO_ROOT}" ]]; then
+  if [[ -n "${CURRENT_WT}" ]] && [[ "${CURRENT_WT}" != "${REPO_ROOT}" ]]; then
     WORKTREES_DATA+=("${CURRENT_WT}|${CURRENT_BRANCH_WT}")
   fi
   
@@ -126,6 +122,12 @@ find_worktree() {
   fi
 }
 
+# Guard against removing the main branch
+if [[ -n "${TARGET}" ]] && [[ "${TARGET}" == "${MAIN_BRANCH}" ]]; then
+  error "Cannot remove the main branch (${MAIN_BRANCH})"
+  exit 1
+fi
+
 # If no target specified, use interactive mode with fzf
 if [[ -z "${TARGET}" ]]; then
   if ! command -v fzf >/dev/null 2>&1; then
@@ -142,32 +144,69 @@ if [[ -z "${TARGET}" ]]; then
     exit 0
   fi
   
-  # Format for fzf display
+  # Show tree preview only on wide terminals (>140 cols)
+  FULL_WIDTH="$(tput cols 2>/dev/null || echo 80)"
+  SHOW_PREVIEW=false
+  if (( FULL_WIDTH > 140 )); then
+    SHOW_PREVIEW=true
+  fi
+
+  # Format for fzf display (tab-delimited: display \t branch \t path)
   FZF_INPUT=""
   while IFS='|' read -r wt_path wt_branch; do
     wt_name="$(basename "${wt_path}")"
-    merge_status="[ACTIVE]"
-    symbol="•"
-    
+
+    # Determine primary status
     if is_branch_merged "${wt_branch}"; then
-      merge_status="[MERGED]"
       symbol="✓"
+      status="${COLOR_GREEN}[MERGED]${COLOR_RESET}"
+    elif [[ -z "$(git branch -r --list "origin/${wt_branch}")" ]]; then
+      symbol="!"
+      status="${COLOR_RED}[UNTRACKED]${COLOR_RESET}"
+    else
+      symbol="•"
+      status="${COLOR_BLUE}[ACTIVE]${COLOR_RESET}"
     fi
-    
-    FZF_INPUT+="${symbol} ${wt_name}|${wt_branch}|${merge_status}|${wt_path}"$'\n'
+
+    # Check for uncommitted changes
+    if [[ -n "$(git -C "${wt_path}" status --porcelain 2>/dev/null)" ]]; then
+      status+=" ${COLOR_YELLOW}[DIRTY]${COLOR_RESET}"
+    fi
+
+    # Use fixed-width columns — fzf pane width is unpredictable so avoid right-alignment
+    if [[ "${SHOW_PREVIEW}" == true ]]; then
+      display="$(printf "  %s %-40s ${COLOR_DIM}%-45s${COLOR_RESET}  %b" \
+        "${symbol}" "${wt_branch}" "${wt_name}" "${status}")"
+    else
+      display="$(printf "  %s %-40s %b" \
+        "${symbol}" "${wt_branch}" "${status}")"
+    fi
+
+    FZF_INPUT+="${display}"$'\t'"${wt_branch}"$'\t'"${wt_path}"$'\n'
   done <<< "${WORKTREE_LIST}"
-  
+
+  # Build fzf command with optional preview
+  FZF_OPTS=(--ansi --header="Select worktree to remove:" --delimiter=$'\t' --with-nth=1)
+  if [[ "${SHOW_PREVIEW}" == true ]]; then
+    if command -v tree >/dev/null 2>&1; then
+      FZF_OPTS+=(--preview='tree -C -L 2 {3}')
+    else
+      FZF_OPTS+=(--preview='ls -la --color=always {3}')
+    fi
+    FZF_OPTS+=(--preview-window=right:50%)
+  fi
+
   # Use fzf to select
-  SELECTED=$(echo -n "${FZF_INPUT}" | fzf --ansi --header="Select worktree to remove:" --delimiter='|' --with-nth=1,2,3 --preview='echo "Path: {4}"')
-  
+  SELECTED=$(echo -n "${FZF_INPUT}" | fzf "${FZF_OPTS[@]}")
+
   if [[ -z "${SELECTED}" ]]; then
     echo "No worktree selected."
     exit 0
   fi
-  
-  # Extract path from selection
-  WORKTREE_PATH="$(echo "${SELECTED}" | cut -d'|' -f4)"
-  BRANCH_NAME="$(echo "${SELECTED}" | cut -d'|' -f2)"
+
+  # Extract branch and path from selection (tab-delimited, tab is cut's default)
+  BRANCH_NAME="$(echo "${SELECTED}" | cut -f2)"
+  WORKTREE_PATH="$(echo "${SELECTED}" | cut -f3)"
 else
   # Find worktree by target
   if ! FOUND_INFO="$(find_worktree "${TARGET}")"; then

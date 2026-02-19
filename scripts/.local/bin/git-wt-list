@@ -54,17 +54,25 @@ done
 # Validate environment
 validate_in_git_repo
 
-# Get repository information
-REPO_ROOT="$(get_repo_root)"
-REPO_NAME="$(get_repo_name)"
+# Get repository information — use git-common-dir to always resolve to the main repo,
+# even when running from inside a worktree
+REPO_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+REPO_NAME="$(basename "${REPO_ROOT}")"
 MAIN_BRANCH="$(get_main_branch)"
 
 # Get current branch
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
 
+# Get worktrees root
+WORKTREES_ROOT="$(get_worktrees_root)"
+
+# Terminal width for filling
+TERM_WIDTH="$(tput cols 2>/dev/null || echo 80)"
+
 # Print header
 echo -e "${COLOR_BOLD}Main repository:${COLOR_RESET} ${REPO_ROOT}"
-echo -e "${COLOR_BOLD}Current branch:${COLOR_RESET} ${CURRENT_BRANCH}"
+echo -e "${COLOR_BOLD}Current branch:${COLOR_RESET}  ${CURRENT_BRANCH}"
+echo -e "${COLOR_BOLD}Worktrees root:${COLOR_RESET}  ${WORKTREES_ROOT}"
 echo ""
 
 # Parse worktree list
@@ -80,22 +88,22 @@ while IFS= read -r line; do
     if [[ -n "${CURRENT_WT}" ]] && [[ "${IS_MAIN_REPO}" == false ]] && [[ "${CURRENT_WT}" != "${REPO_ROOT}" ]]; then
       WORKTREES_DATA+=("${CURRENT_WT}|${CURRENT_BRANCH_WT}|${CURRENT_COMMIT}")
     fi
-    
+
     # Start new worktree
     CURRENT_WT="${BASH_REMATCH[1]}"
     CURRENT_BRANCH_WT=""
     CURRENT_COMMIT=""
     IS_MAIN_REPO=false
-    
+
   elif [[ "${line}" =~ ^HEAD\ ([a-f0-9]+)$ ]]; then
     CURRENT_COMMIT="${BASH_REMATCH[1]}"
-    
+
   elif [[ "${line}" =~ ^branch\ refs/heads/(.+)$ ]]; then
     CURRENT_BRANCH_WT="${BASH_REMATCH[1]}"
-    
+
   elif [[ "${line}" =~ ^bare$ ]]; then
     IS_MAIN_REPO=true
-    
+
   elif [[ "${line}" == "" ]]; then
     # Empty line, might be end of entry
     continue
@@ -121,37 +129,53 @@ echo -e "${COLOR_BOLD}Worktrees:${COLOR_RESET}"
 
 for entry in "${WORKTREES_DATA[@]}"; do
   IFS='|' read -r wt_path wt_branch wt_commit <<< "${entry}"
-  
-  # Check if branch is merged
-  MERGE_STATUS=""
-  SYMBOL=""
-  if is_branch_merged "${wt_branch}"; then
-    MERGE_STATUS="${COLOR_GREEN}[MERGED]${COLOR_RESET}"
-    SYMBOL="${COLOR_GREEN}✓${COLOR_RESET}"
-  else
-    MERGE_STATUS="${COLOR_BLUE}[ACTIVE]${COLOR_RESET}"
-    SYMBOL="${COLOR_BLUE}•${COLOR_RESET}"
-  fi
-  
-  # Get worktree name (basename of path)
+
   wt_name="$(basename "${wt_path}")"
-  
-  # Print worktree info
-  if [[ "${VERBOSE}" == true ]]; then
-    printf "  %b %-35s %-25s %b %-10s %b\n" \
-      "${SYMBOL}" \
-      "${wt_name}" \
-      "${wt_branch}" \
-      "${MERGE_STATUS}" \
-      "${wt_commit:0:8}" \
-      "${COLOR_DIM}${wt_path}${COLOR_RESET}"
+
+  # Determine status
+  if is_branch_merged "${wt_branch}"; then
+    SYMBOL="${COLOR_GREEN}✓${COLOR_RESET}"
+    STATUS="${COLOR_GREEN}[MERGED]${COLOR_RESET}"
+  elif [[ -z "$(git branch -r --list "origin/${wt_branch}")" ]]; then
+    SYMBOL="${COLOR_RED}!${COLOR_RESET}"
+    STATUS="${COLOR_RED}[UNTRACKED]${COLOR_RESET}"
   else
-    printf "  %b %-35s %-25s %b %b\n" \
-      "${SYMBOL}" \
-      "${wt_name}" \
-      "${wt_branch}" \
-      "${MERGE_STATUS}" \
-      "${COLOR_DIM}${wt_path}${COLOR_RESET}"
+    SYMBOL="${COLOR_BLUE}•${COLOR_RESET}"
+    STATUS="${COLOR_BLUE}[ACTIVE]${COLOR_RESET}"
+  fi
+
+  # Check for uncommitted changes
+  if [[ -n "$(git -C "${wt_path}" status --porcelain 2>/dev/null)" ]]; then
+    STATUS+=" ${COLOR_YELLOW}[DIRTY]${COLOR_RESET}"
+  fi
+
+  # Build right side: folder-name (with optional commit hash in verbose mode)
+  if [[ "${VERBOSE}" == true ]]; then
+    right_side="${wt_name}  ${wt_commit:0:8}"
+  else
+    right_side="${wt_name}"
+  fi
+
+  # Calculate padding — show folder name only when terminal is wide enough
+  status_plain="$(echo -e "${STATUS}" | sed 's/\x1b\[[0-9;]*m//g')"
+  left_len=$(( 4 + ${#wt_branch} ))
+
+  if (( TERM_WIDTH > 100 )); then
+    # Wide: symbol branch ... folder  status
+    right_len=$(( ${#right_side} + 2 + ${#status_plain} ))
+    pad_len=$(( TERM_WIDTH - left_len - right_len ))
+    (( pad_len < 2 )) && pad_len=2
+    padding="$(printf '%*s' "${pad_len}" '')"
+    printf "  %b %s%s${COLOR_DIM}%s${COLOR_RESET}  %b\n" \
+      "${SYMBOL}" "${wt_branch}" "${padding}" "${right_side}" "${STATUS}"
+  else
+    # Narrow: symbol branch ... status
+    right_len=$(( ${#status_plain} ))
+    pad_len=$(( TERM_WIDTH - left_len - right_len ))
+    (( pad_len < 2 )) && pad_len=2
+    padding="$(printf '%*s' "${pad_len}" '')"
+    printf "  %b %s%s%b\n" \
+      "${SYMBOL}" "${wt_branch}" "${padding}" "${STATUS}"
   fi
 done
 
@@ -159,3 +183,5 @@ echo ""
 echo "Legend:"
 echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} = Merged into ${MAIN_BRANCH}"
 echo -e "  ${COLOR_BLUE}•${COLOR_RESET} = Active (not merged)"
+echo -e "  ${COLOR_RED}!${COLOR_RESET} = Untracked (no remote branch)"
+echo -e "  ${COLOR_YELLOW}~${COLOR_RESET} = Dirty (uncommitted changes)"

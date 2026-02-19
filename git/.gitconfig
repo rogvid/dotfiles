@@ -29,7 +29,22 @@
   # Clone a bare repository
   bare = clone --bare
   # fancydiff
-  diffz = "!diffzf"
+  difz = "!diffzf"
+  # Worktree stuff
+  # Create/switch to worktree
+  # git wta feat/new-feature
+  # List all worktrees
+  # git wtls
+  # Remove a worktree and delete merged branch
+  # git wtrm -d feat/old-feature
+  # Clean up all merged worktrees
+  # git wtp -d
+  # Create and open in tmux
+  # git wta -t fix/bug
+  wta = !git-wt-add
+  wtls = !git-wt-list
+  wtrm = !git-wt-remove
+  wtp = !git-wt-prune
 [filter "lfs"]
   clean = git-lfs clean -- %f
   smudge = git-lfs smudge -- %f

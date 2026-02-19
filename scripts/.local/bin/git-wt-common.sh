@@ -131,19 +131,27 @@ format_worktree_name() {
   fi
 }
 
-# Check if a branch is merged into the main branch
+# Check if a branch is merged into the main branch (handles regular and squash merges)
 is_branch_merged() {
   local branch_name="$1"
   local main_branch
   main_branch="$(get_main_branch)"
-  
-  # Get list of merged branches and check if our branch is in it
-  # The grep pattern needs to handle both "  branch" and "+ branch" (current branch)
+
+  # Check regular merge
   if git branch --merged "${main_branch}" | grep -qE "^[* +] +${branch_name}$"; then
     return 0
-  else
-    return 1
   fi
+
+  # Check squash merge: create a synthetic squash commit and see if it's already in main
+  local merge_base tree dangling
+  merge_base="$(git merge-base "${main_branch}" "${branch_name}" 2>/dev/null)" || return 1
+  tree="$(git rev-parse "${branch_name}^{tree}" 2>/dev/null)" || return 1
+  dangling="$(git commit-tree "${tree}" -p "${merge_base}" -m _ 2>/dev/null)" || return 1
+  if [[ "$(git cherry "${main_branch}" "${dangling}" 2>/dev/null)" == "-"* ]]; then
+    return 0
+  fi
+
+  return 1
 }
 
 # Check if a worktree exists at the given path

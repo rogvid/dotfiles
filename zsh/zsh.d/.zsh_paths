@@ -1,6 +1,5 @@
 # Basic paths
-${HOME}/.local/bin
-${HOME}/.local/scripts
+${HOME}/bin
 ${HOME}/.cargo/bin
 ${HOME}/.yarn/bin
 

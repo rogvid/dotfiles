@@ -34,6 +34,8 @@ zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
 
 source $ZSH/oh-my-zsh.sh
 
+# Activate mise
+eval "$(~/.local/bin/mise activate zsh)"
 
 # User configuration
 
@@ -104,10 +106,6 @@ eval "$(atuin init zsh --disable-up-arrow)"
 # Generated for envman. Do not edit.
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
-. "$HOME/.atuin/bin/env"
-
-. "$HOME/.local/bin/env"
-
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
@@ -118,6 +116,4 @@ if [[ $(grep -i Microsoft /proc/version) ]]; then
   alias zed="WAYLAND_DISPLAY='' zed"
 fi
 
-# Activate mise
-eval "$(~/.local/bin/mise activate zsh)"
 

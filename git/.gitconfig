@@ -1,11 +1,11 @@
 [user]
   name = "Rogvi David Arge"
   email = "rda@flowtale.ai"
-[includeif "gitdir:~/work/Flowtale/"]
+[includeif "gitdir:~/**/work/flowtale/"]
   path = ~/.gitconfig-flowtale
-[includeif "gitdir:~/work/Kvist/"]
+[includeif "gitdir:~/**/work/kvist/"]
   path = ~/.gitconfig-kvist
-[includeif "gitdir:~/personal/"]
+[includeif "gitdir:~/**/personal/"]
   path = ~/.gitconfig-personal
 [credential]
   helper = store

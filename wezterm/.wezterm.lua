@@ -29,12 +29,14 @@ local config = wezterm.config_builder()
 config.color_scheme = "Catppuccin Mocha"
 config.enable_tab_bar = false
 config.font_size = 12.0
+local is_wsl = os.getenv("WSL_DISTRO_NAME") ~= nil
+config.window_decorations = is_wsl and "RESIZE" or "NONE"
 -- macos_window_background_blur = 40,
 -- macos_window_background_blur = 30,
 
 -- window_background_image = '/Users/omerhamerman/Downloads/3840x1080-Wallpaper-041.jpg',
 config.window_background_opacity = 1.00
-config.window_decorations = "RESIZE"
+-- config.window_decorations = "RESIZE"
 config.exit_behavior = "Close"
 -- keys = {
 --   {

@@ -12,8 +12,8 @@
 ;; defvar is how we define variables that can be used 
 ;; in other places
 (defvar
-  tap-time 150
-  hold-time 200
+  tap-time 120
+  hold-time 150
 )
 
 ;; defalias is the actual remapping
@@ -27,6 +27,6 @@
 ;; with deflayer we map the aliases to a respective key
 ;; in the order they are defined in defsrc
 (deflayer base
-  @escctrl 
+  @escctrl
   ;; @escctrl @a @s @d
 )

@@ -3,11 +3,20 @@
 if [[ $# -eq 1 ]]; then
   selected=$1
 else
-  # Find git repos in projects/ folders
-  projects=$(find ~/asgard/work/*/projects ~/asgard/personal/projects -name .git -maxdepth 5 -type d -prune -exec dirname {} \; 2>/dev/null)
+  # Locate projects/ and worktrees/ container dirs in one pass.
+  # Prune hidden + heavy dirs so we don't walk node_modules, .cache, etc.
+  containers=$(find ~ -maxdepth 6 \
+    \( -path '*/.*' -o -name node_modules -o -name target -o -name venv -o -name __pycache__ -o -name dist -o -name build \) -prune \
+    -o -type d \( -path '*/work/*/projects' -o -path '*/personal/projects' -o -path '*/work/*/worktrees' -o -path '*/personal/worktrees' \) -print 2>/dev/null)
 
-  # Find worktrees and prefix with [WT]
-  worktrees=$(find ~/asgard/work/*/worktrees ~/asgard/personal/worktrees -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's/^/[WT] /')
+  # Git repos inside each projects/ folder
+  projects=$(echo "$containers" | grep '/projects$' \
+    | while read -r dir; do find "$dir" -maxdepth 2 -name .git -type d -prune -exec dirname {} \;; done)
+
+  # Worktree dirs, prefixed with [WT]
+  worktrees=$(echo "$containers" | grep '/worktrees$' \
+    | while read -r dir; do find "$dir" -mindepth 1 -maxdepth 1 -type d; done \
+    | sed 's/^/[WT] /')
 
   # Combine both lists and use fzf
   selected=$(printf "%s\n%s" "$projects" "$worktrees" | fzf --preview 'tree -C $(echo {} | sed "s/^\[WT\] //") | head -200')

@@ -1,0 +1,337 @@
+#!/usr/bin/env -S uv run --script
+# vim: set ft=python:
+# -*- mode: python -*-
+#
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "python-docx>=1.1.2",
+#   "typer>=0.16.0",
+#   "rich>=13.9.4",
+#   "markdown-it-py>=3.0.0",
+# ]
+# ///
+
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import sys
+from typing import Optional
+
+import typer
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
+from rich.console import Console
+
+app = typer.Typer(add_completion=False, no_args_is_help=True)
+console = Console()
+
+
+def _add_title_rule(doc: Document) -> None:
+    rule = doc.add_paragraph("-" * 48)
+    rule.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+
+def _extract_frontmatter(markdown_text: str) -> tuple[dict[str, str], str]:
+    """Extract YAML-like frontmatter at document start and return metadata + body."""
+    if not markdown_text.startswith("---\n"):
+        return {}, markdown_text
+
+    end_idx = markdown_text.find("\n---\n", 4)
+    if end_idx == -1:
+        return {}, markdown_text
+
+    raw_frontmatter = markdown_text[4:end_idx]
+    body = markdown_text[end_idx + 5 :]
+
+    metadata: dict[str, str] = {}
+    for raw_line in raw_frontmatter.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip().lower()
+        value = value.strip().strip('"\'')
+        if key:
+            metadata[key] = value
+
+    return metadata, body
+
+
+def _validate_input(path: Optional[Path]) -> Optional[Path]:
+    if path is None:
+        return None
+    if not path.exists():
+        raise typer.BadParameter(f"Input file does not exist: {path}")
+    if not path.is_file():
+        raise typer.BadParameter(f"Input path is not a file: {path}")
+    return path
+
+
+def _validate_output(path: Path, overwrite: bool) -> Path:
+    if path.suffix.lower() != ".docx":
+        raise typer.BadParameter("Output file must have a .docx extension")
+    if not path.parent.exists():
+        raise typer.BadParameter(f"Output directory does not exist: {path.parent}")
+    if path.exists() and not overwrite:
+        raise typer.BadParameter(
+            f"Output file already exists: {path}. Use --overwrite to replace it."
+        )
+    return path
+
+
+def _read_markdown(input_file: Optional[Path]) -> str:
+    if input_file is not None:
+        return input_file.read_text(encoding="utf-8")
+
+    if sys.stdin.isatty():
+        raise typer.BadParameter(
+            "No input provided. Use --input or pipe content via stdin."
+        )
+
+    return sys.stdin.read()
+
+
+def _list_style(kind: str, depth: int) -> str:
+    if kind == "ordered":
+        return "List Number" if depth <= 1 else f"List Number {min(depth, 3)}"
+    return "List Bullet" if depth <= 1 else f"List Bullet {min(depth, 3)}"
+
+
+def _checkbox_from_text(text: str) -> tuple[Optional[str], str]:
+    match = re.match(r"^\[( |x|X)\]\s+", text)
+    if not match:
+        return None, text
+
+    symbol = "☑" if match.group(1).lower() == "x" else "☐"
+    stripped_text = text[match.end() :]
+    return symbol, stripped_text
+
+
+def _write_inline_runs(
+    paragraph,
+    inline_token: Token,
+    checkbox_symbol: Optional[str] = None,
+) -> None:
+    bold = False
+    italic = False
+    strike = False
+    marker_stripped = False
+
+    if checkbox_symbol:
+        marker_run = paragraph.add_run(f"{checkbox_symbol} ")
+        marker_run.bold = False
+        marker_run.italic = False
+        marker_run.font.strike = False
+
+    for child in inline_token.children or []:
+        t = child.type
+
+        if t == "strong_open":
+            bold = True
+            continue
+        if t == "strong_close":
+            bold = False
+            continue
+        if t == "em_open":
+            italic = True
+            continue
+        if t == "em_close":
+            italic = False
+            continue
+        if t == "s_open":
+            strike = True
+            continue
+        if t == "s_close":
+            strike = False
+            continue
+
+        if t == "code_inline":
+            run = paragraph.add_run(child.content)
+            run.font.name = "Consolas"
+            run.font.size = Pt(10)
+            run.bold = bold
+            run.italic = italic
+            run.font.strike = strike
+            continue
+
+        if t in {"text", "html_inline"}:
+            content = child.content
+            if checkbox_symbol and not marker_stripped:
+                _, content = _checkbox_from_text(content)
+                marker_stripped = True
+
+            run = paragraph.add_run(content)
+            run.bold = bold
+            run.italic = italic
+            run.font.strike = strike
+            continue
+
+        if t in {"softbreak", "hardbreak"}:
+            paragraph.add_run().add_break()
+
+
+def _render_markdown_to_docx(
+    markdown_text: str,
+    doc: Document,
+    doc_title: Optional[str] = None,
+) -> None:
+    md = MarkdownIt("commonmark").enable("strikethrough")
+    tokens = md.parse(markdown_text)
+
+    list_stack: list[str] = []
+    first_h1_rendered = bool(doc_title)
+
+    if doc_title:
+        p = doc.add_heading(doc_title, level=0)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _add_title_rule(doc)
+
+    i = 0
+
+    while i < len(tokens):
+        token = tokens[i]
+
+        if token.type == "bullet_list_open":
+            list_stack.append("bullet")
+            i += 1
+            continue
+        if token.type == "bullet_list_close":
+            if list_stack:
+                list_stack.pop()
+            i += 1
+            continue
+        if token.type == "ordered_list_open":
+            list_stack.append("ordered")
+            i += 1
+            continue
+        if token.type == "ordered_list_close":
+            if list_stack:
+                list_stack.pop()
+            i += 1
+            continue
+
+        if token.type == "heading_open" and i + 1 < len(tokens):
+            level = int(token.tag[1])
+            inline = tokens[i + 1]
+            title_text = inline.content.strip()
+
+            if level == 1 and not first_h1_rendered:
+                p = doc.add_heading(title_text, level=0)
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                _add_title_rule(doc)
+                first_h1_rendered = True
+            else:
+                p = doc.add_heading("", level=min(level, 9))
+                _write_inline_runs(p, inline)
+
+            i += 3
+            continue
+
+        if token.type == "paragraph_open" and i + 1 < len(tokens):
+            inline = tokens[i + 1]
+
+            if list_stack:
+                style = _list_style(list_stack[-1], len(list_stack))
+                p = doc.add_paragraph(style=style)
+                checkbox_symbol, _ = _checkbox_from_text(inline.content)
+                _write_inline_runs(p, inline, checkbox_symbol=checkbox_symbol)
+            else:
+                p = doc.add_paragraph()
+                _write_inline_runs(p, inline)
+            i += 3
+            continue
+
+        if token.type in {"fence", "code_block"}:
+            p = doc.add_paragraph()
+            run = p.add_run(token.content.rstrip("\n"))
+            run.font.name = "Consolas"
+            run.font.size = Pt(10)
+            i += 1
+            continue
+
+        if token.type == "blockquote_open":
+            i += 1
+            continue
+        if token.type == "blockquote_close":
+            i += 1
+            continue
+
+        if token.type == "hr":
+            doc.add_paragraph("-" * 20)
+            i += 1
+            continue
+
+        i += 1
+
+
+def _build_document(markdown_text: str, title: Optional[str] = None) -> Document:
+    doc = Document()
+    if title:
+        doc.core_properties.title = title
+
+    for section in doc.sections:
+        section.top_margin = Inches(0.75)
+        section.bottom_margin = Inches(0.75)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+
+    _render_markdown_to_docx(markdown_text, doc, doc_title=title)
+    return doc
+
+
+@app.command()
+def main(
+    input_file: Optional[Path] = typer.Option(
+        None,
+        "--input",
+        "-i",
+        help="Path to input Markdown/text file. If omitted, reads from stdin.",
+    ),
+    output_file: Path = typer.Option(
+        ...,
+        "--output",
+        "-o",
+        help="Path to output .docx file.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        "-f",
+        help="Overwrite output file if it already exists.",
+    ),
+    title: Optional[str] = typer.Option(
+        None,
+        "--title",
+        "-t",
+        help="Document title metadata and optional visible title heading.",
+    ),
+) -> None:
+    """Convert Markdown input to DOCX."""
+    validated_input = _validate_input(input_file)
+    validated_output = _validate_output(output_file, overwrite)
+    markdown_text = _read_markdown(validated_input)
+
+    if not markdown_text.strip():
+        raise typer.BadParameter("Input content is empty.")
+
+    frontmatter, markdown_body = _extract_frontmatter(markdown_text)
+    resolved_title = title or frontmatter.get("title")
+
+    doc = _build_document(markdown_body, title=resolved_title)
+    doc.save(str(validated_output))
+
+    source = str(validated_input) if validated_input else "stdin"
+    console.print(
+        f"[green]Saved:[/green] {validated_output} [dim](from {source})[/dim]"
+    )
+
+
+if __name__ == "__main__":
+    app()

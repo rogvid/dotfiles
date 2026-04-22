@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Colors for output
-readonly COLOR_RED='\033[0;31m'
-readonly COLOR_GREEN='\033[0;32m'
-readonly COLOR_BLUE='\033[0;34m'
-readonly COLOR_YELLOW='\033[1;33m'
-readonly COLOR_DIM='\033[2m'
-readonly COLOR_BOLD='\033[1m'
-readonly COLOR_RESET='\033[0m'
+# Colors for output (using $'...' so variables contain real escape characters)
+readonly COLOR_RED=$'\033[0;31m'
+readonly COLOR_GREEN=$'\033[0;32m'
+readonly COLOR_BLUE=$'\033[0;34m'
+readonly COLOR_YELLOW=$'\033[1;33m'
+readonly COLOR_DIM=$'\033[2m'
+readonly COLOR_BOLD=$'\033[1m'
+readonly COLOR_RESET=$'\033[0m'
 
 # Validate we're in a git repository
 validate_in_git_repo() {
@@ -70,8 +70,32 @@ get_worktrees_root() {
   echo "${worktrees_root}"
 }
 
-# Get the main branch name (main, master, or trunk)
+# Get the main branch name.
+# Priority:
+#   1. git config worktree.mainBranch (explicit override)
+#   2. Branch checked out in the primary worktree (the non-worktree checkout)
+#   3. Fallback: first of main/master/trunk that exists
 get_main_branch() {
+  # 1. Explicit override via git config
+  local configured
+  configured="$(git config --get worktree.mainBranch 2>/dev/null)" || true
+  if [[ -n "${configured}" ]]; then
+    echo "${configured}"
+    return 0
+  fi
+
+  # 2. Detect from the primary worktree's checked-out branch
+  local git_common_dir primary_head
+  git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  if [[ -f "${git_common_dir}/HEAD" ]]; then
+    primary_head="$(cat "${git_common_dir}/HEAD")"
+    if [[ "${primary_head}" =~ ^ref:\ refs/heads/(.+)$ ]]; then
+      echo "${BASH_REMATCH[1]}"
+      return 0
+    fi
+  fi
+
+  # 3. Fallback: well-known branch names
   local branch
   for branch in main master trunk; do
     if git rev-parse --verify "${branch}" >/dev/null 2>&1; then
@@ -79,8 +103,8 @@ get_main_branch() {
       return 0
     fi
   done
-  
-  echo -e "${COLOR_RED}Error: Could not detect main branch (tried: main, master, trunk).${COLOR_RESET}" >&2
+
+  echo -e "${COLOR_RED}Error: Could not detect main branch.${COLOR_RESET}" >&2
   exit 1
 }
 
@@ -131,23 +155,48 @@ format_worktree_name() {
   fi
 }
 
-# Check if a branch is merged into the main branch (handles regular and squash merges)
+# Check if a branch is merged into the main branch (handles regular and squash merges).
+# A branch that never diverged (no unique commits) is NOT considered merged.
 is_branch_merged() {
   local branch_name="$1"
   local main_branch
   main_branch="$(get_main_branch)"
 
-  # Check regular merge
-  if git branch --merged "${main_branch}" | grep -qE "^[* +] +${branch_name}$"; then
-    return 0
+  local branch_tip main_tip
+  branch_tip="$(git rev-parse "${branch_name}" 2>/dev/null)" || return 1
+  main_tip="$(git rev-parse "${main_branch}" 2>/dev/null)" || return 1
+
+  # If the branch tip IS the main branch tip, it was just created — not "merged"
+  if [[ "${branch_tip}" == "${main_tip}" ]]; then
+    return 1
   fi
 
-  # Check squash merge: create a synthetic squash commit and see if it's already in main
-  local merge_base tree dangling
-  merge_base="$(git merge-base "${main_branch}" "${branch_name}" 2>/dev/null)" || return 1
-  tree="$(git rev-parse "${branch_name}^{tree}" 2>/dev/null)" || return 1
-  dangling="$(git commit-tree "${tree}" -p "${merge_base}" -m _ 2>/dev/null)" || return 1
-  if [[ "$(git cherry "${main_branch}" "${dangling}" 2>/dev/null)" == "-"* ]]; then
+  # Count unique commits on the branch (not reachable from main)
+  local unique_count
+  unique_count="$(git rev-list --count "${main_branch}..${branch_name}" 2>/dev/null)" || return 1
+
+  if [[ "${unique_count}" -gt 0 ]]; then
+    # Branch has unique commits — check regular merge (covers fast-forward too)
+    if git branch --merged "${main_branch}" | grep -qE "^[* +] +${branch_name}$"; then
+      return 0
+    fi
+
+    # Check squash merge: create a synthetic squash commit and see if it's already in main
+    local merge_base tree dangling
+    merge_base="$(git merge-base "${main_branch}" "${branch_name}" 2>/dev/null)" || return 1
+    tree="$(git rev-parse "${branch_name}^{tree}" 2>/dev/null)" || return 1
+    dangling="$(git commit-tree "${tree}" -p "${merge_base}" -m _ 2>/dev/null)" || return 1
+    if [[ "$(git cherry "${main_branch}" "${dangling}" 2>/dev/null)" == "-"* ]]; then
+      return 0
+    fi
+
+    return 1
+  fi
+
+  # No unique commits (branch tip is ancestor of main).
+  # Check if it was genuinely merged (branch tip is a parent of a merge commit on main)
+  if git log --merges --format='%P' --ancestry-path "${branch_tip}..${main_tip}" 2>/dev/null \
+     | grep -q "${branch_tip}"; then
     return 0
   fi
 

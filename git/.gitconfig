@@ -30,6 +30,12 @@
   bare = clone --bare
   # fancydiff
   difz = "!diffzf"
+  # Repo inspection
+  mostchanges = "!f() { git log --format=format: --name-only --since=\"1 year ago\" | sort | uniq -c | sort -nr | head -20; }; f"
+  whobuiltit = shortlog -sn --no-merges
+  bugorigin = "!git log -i -E --grep='fix|bug|broken' --name-only --format='' | sort | uniq -c | sort -nr | head -20"
+  velocity = "!git log --format='%ad' --date=format:'%Y-%m' | sort | uniq -c"
+  firefighting = "!git log --oneline --since='1 year ago' | grep -iE 'revert|hotfix|emergency|rollback'"
   # Worktree stuff
   # Create/switch to worktree
   # git wta feat/new-feature
@@ -45,6 +51,8 @@
   wtls = !git-wt-list
   wtrm = !git-wt-remove
   wtp = !git-wt-prune
+  worktree-switch = !git-wt-switch.sh
+  wts = worktree-switch
 [filter "lfs"]
   clean = git-lfs clean -- %f
   smudge = git-lfs smudge -- %f

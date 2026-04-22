@@ -6,7 +6,7 @@ Documentation=https://github.com/jtroo/kanata
 Environment=PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:$HOME/.cargo/bin
 Environment=DISPLAY=:0
 Type=simple
-ExecStart=%h/.local/share/mise/installs/cargo-kanata/1.10.0/bin/kanata --cfg %h/.config/kanata/kanata.kbd
+ExecStart=%h/.local/bin/mise exec cargo:kanata -- kanata --cfg %h/.config/kanata/kanata.kbd
 Restart=no
 
 

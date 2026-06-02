@@ -26,6 +26,7 @@ _darcs
 ./scripts/
 ./applications/
 ./packages/
+./wsl/
 
 # Ignore initialization scripts
 setup.sh

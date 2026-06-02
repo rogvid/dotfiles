@@ -7,16 +7,17 @@
 # dependencies = [
 #   "pyodbc>=5.0.0",
 #   "pymysql>=1.1.0",
+#   "psycopg[binary]>=3.1",
 #   "typer>=0.15.2",
 #   "rich>=13.9.4",
 # ]
 # ///
-"""Database Structure Explorer for SQL Server and MySQL."""
+"""Database Structure Explorer for SQL Server, MySQL, and PostgreSQL."""
 
 import json
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Optional
@@ -26,7 +27,9 @@ from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
 
-app = typer.Typer(help="Database Structure Explorer for SQL Server and MySQL")
+app = typer.Typer(
+    help="Database Structure Explorer for SQL Server, MySQL, and PostgreSQL"
+)
 console = Console()
 
 # Config file location for user-defined profiles
@@ -36,7 +39,28 @@ CONFIG_FILE = Path.home() / ".config" / "db-explorer" / "profiles.json"
 DEFAULT_PORTS = {
     "mssql": 1433,
     "mysql": 3306,
+    "postgres": 5432,
 }
+
+# Verbosity level: 0 = default, 1 = -v, 2 = -vv, 3 = -vvv
+VERBOSE = 0
+
+
+def vprint(level: int, message: str) -> None:
+    """Print a message only when the current verbosity is at or above level."""
+    if VERBOSE >= level:
+        rprint(message)
+
+
+def report_error(operation: str, error: Exception, fatal: bool = False) -> None:
+    """Print a clear error message; show full traceback only at -vvv."""
+    rprint(f"[red]Error {operation}: {error}[/red]")
+    if VERBOSE >= 3:
+        console.print_exception(show_locals=False)
+    else:
+        rprint("[dim]Re-run with -vvv to see the full traceback.[/dim]")
+    if fatal:
+        raise typer.Exit(1)
 
 
 class DbType(str, Enum):
@@ -44,6 +68,7 @@ class DbType(str, Enum):
 
     MSSQL = "mssql"
     MYSQL = "mysql"
+    POSTGRES = "postgres"
 
 
 @dataclass
@@ -79,11 +104,32 @@ class ForeignKeyInfo:
     ref_column: str
 
 
+@dataclass
+class ProcedureParameter:
+    """Stored procedure parameter information."""
+
+    name: str | None
+    data_type: str
+    mode: str | None  # IN, OUT, INOUT
+
+
+@dataclass
+class StoredProcedureInfo:
+    """Stored procedure information."""
+
+    schema: str
+    name: str
+    definition: str | None
+    parameters: list[ProcedureParameter] = field(default_factory=list)
+
+
 class DatabaseAdapter(ABC):
     """Abstract base class for database adapters."""
 
     @abstractmethod
-    def connect(self, server: str, port: int, database: str, username: str, password: str) -> Any:
+    def connect(
+        self, server: str, port: int, database: str, username: str, password: str
+    ) -> Any:
         """Connect to database and return connection object."""
         pass
 
@@ -93,13 +139,22 @@ class DatabaseAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_table_structure(self, connection: Any, schema: str, table: str) -> list[ColumnInfo]:
+    def get_table_structure(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ColumnInfo]:
         """Get detailed structure of a table."""
         pass
 
     @abstractmethod
-    def get_foreign_keys(self, connection: Any, schema: str, table: str) -> list[ForeignKeyInfo]:
+    def get_foreign_keys(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ForeignKeyInfo]:
         """Get foreign key relationships."""
+        pass
+
+    @abstractmethod
+    def get_stored_procedures(self, connection: Any) -> list[StoredProcedureInfo]:
+        """Get all stored procedures with their parameters."""
         pass
 
     @abstractmethod
@@ -111,7 +166,9 @@ class DatabaseAdapter(ABC):
 class MSSQLAdapter(DatabaseAdapter):
     """Microsoft SQL Server adapter."""
 
-    def connect(self, server: str, port: int, database: str, username: str, password: str) -> Any:
+    def connect(
+        self, server: str, port: int, database: str, username: str, password: str
+    ) -> Any:
         """Connect to MSSQL database."""
         import pyodbc
 
@@ -124,6 +181,7 @@ class MSSQLAdapter(DatabaseAdapter):
             f"TrustServerCertificate=yes;"
             f"Trusted_Connection=no;"
         )
+        vprint(2, f"[dim]ODBC connect → {server}:{port}/{database}[/dim]")
         return pyodbc.connect(conn_str, timeout=15)
 
     def get_all_tables(self, connection: Any) -> list[TableInfo]:
@@ -141,12 +199,18 @@ class MSSQLAdapter(DatabaseAdapter):
         GROUP BY s.name, t.name
         ORDER BY s.name, t.name
         """
+        vprint(2, "[dim]Querying sys.tables / sys.partitions...[/dim]")
         cursor.execute(query)
-        tables = [TableInfo(schema=row[0], name=row[1], row_count=row[2]) for row in cursor.fetchall()]
+        tables = [
+            TableInfo(schema=row[0], name=row[1], row_count=row[2])
+            for row in cursor.fetchall()
+        ]
         cursor.close()
         return tables
 
-    def get_table_structure(self, connection: Any, schema: str, table: str) -> list[ColumnInfo]:
+    def get_table_structure(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ColumnInfo]:
         """Get detailed structure of a table."""
         cursor = connection.cursor()
         query = """
@@ -202,7 +266,9 @@ class MSSQLAdapter(DatabaseAdapter):
         cursor.close()
         return columns
 
-    def get_foreign_keys(self, connection: Any, schema: str, table: str) -> list[ForeignKeyInfo]:
+    def get_foreign_keys(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ForeignKeyInfo]:
         """Get foreign key relationships."""
         cursor = connection.cursor()
         query = """
@@ -232,6 +298,59 @@ class MSSQLAdapter(DatabaseAdapter):
         cursor.close()
         return fks
 
+    def get_stored_procedures(self, connection: Any) -> list[StoredProcedureInfo]:
+        """Get all stored procedures with their parameters."""
+        cursor = connection.cursor()
+        proc_query = """
+        SELECT
+            s.name AS schema_name,
+            p.name AS procedure_name,
+            m.definition AS procedure_definition
+        FROM sys.procedures p
+        INNER JOIN sys.schemas s ON p.schema_id = s.schema_id
+        LEFT JOIN sys.sql_modules m ON p.object_id = m.object_id
+        ORDER BY s.name, p.name
+        """
+        vprint(2, "[dim]Querying sys.procedures...[/dim]")
+        cursor.execute(proc_query)
+        procs: dict[tuple[str, str], StoredProcedureInfo] = {}
+        for row in cursor.fetchall():
+            key = (row[0], row[1])
+            procs[key] = StoredProcedureInfo(
+                schema=row[0], name=row[1], definition=row[2]
+            )
+
+        param_query = """
+        SELECT
+            s.name AS schema_name,
+            p.name AS procedure_name,
+            pa.name AS parameter_name,
+            t.name AS parameter_type,
+            CASE WHEN pa.is_output = 1 THEN 'OUT' ELSE 'IN' END AS parameter_mode,
+            pa.parameter_id
+        FROM sys.procedures p
+        INNER JOIN sys.schemas s ON p.schema_id = s.schema_id
+        INNER JOIN sys.parameters pa ON p.object_id = pa.object_id
+        INNER JOIN sys.types t ON pa.user_type_id = t.user_type_id
+        WHERE pa.parameter_id > 0
+        ORDER BY s.name, p.name, pa.parameter_id
+        """
+        vprint(2, "[dim]Querying sys.parameters for procedure parameters...[/dim]")
+        cursor.execute(param_query)
+        for row in cursor.fetchall():
+            key = (row[0], row[1])
+            if key in procs:
+                procs[key].parameters.append(
+                    ProcedureParameter(
+                        name=row[2] or None,
+                        data_type=row[3],
+                        mode=row[4],
+                    )
+                )
+
+        cursor.close()
+        return list(procs.values())
+
     def close(self, connection: Any) -> None:
         """Close the database connection."""
         connection.close()
@@ -240,10 +359,13 @@ class MSSQLAdapter(DatabaseAdapter):
 class MySQLAdapter(DatabaseAdapter):
     """MySQL adapter."""
 
-    def connect(self, server: str, port: int, database: str, username: str, password: str) -> Any:
+    def connect(
+        self, server: str, port: int, database: str, username: str, password: str
+    ) -> Any:
         """Connect to MySQL database."""
         import pymysql
 
+        vprint(2, f"[dim]pymysql connect → {server}:{port}/{database}[/dim]")
         return pymysql.connect(
             host=server,
             port=port,
@@ -269,12 +391,18 @@ class MySQLAdapter(DatabaseAdapter):
             AND TABLE_TYPE = 'BASE TABLE'
         ORDER BY TABLE_NAME
         """
+        vprint(2, "[dim]Querying information_schema.TABLES...[/dim]")
         cursor.execute(query)
-        tables = [TableInfo(schema=row[0], name=row[1], row_count=row[2] or 0) for row in cursor.fetchall()]
+        tables = [
+            TableInfo(schema=row[0], name=row[1], row_count=row[2] or 0)
+            for row in cursor.fetchall()
+        ]
         cursor.close()
         return tables
 
-    def get_table_structure(self, connection: Any, schema: str, table: str) -> list[ColumnInfo]:
+    def get_table_structure(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ColumnInfo]:
         """Get detailed structure of a table."""
         cursor = connection.cursor()
         query = """
@@ -334,7 +462,9 @@ class MySQLAdapter(DatabaseAdapter):
         cursor.close()
         return columns
 
-    def get_foreign_keys(self, connection: Any, schema: str, table: str) -> list[ForeignKeyInfo]:
+    def get_foreign_keys(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ForeignKeyInfo]:
         """Get foreign key relationships."""
         cursor = connection.cursor()
         query = """
@@ -367,6 +497,251 @@ class MySQLAdapter(DatabaseAdapter):
         cursor.close()
         return fks
 
+    def get_stored_procedures(self, connection: Any) -> list[StoredProcedureInfo]:
+        """Get all stored procedures with their parameters."""
+        cursor = connection.cursor()
+        proc_query = """
+        SELECT
+            ROUTINE_SCHEMA,
+            ROUTINE_NAME,
+            ROUTINE_DEFINITION
+        FROM information_schema.ROUTINES
+        WHERE ROUTINE_SCHEMA = DATABASE()
+            AND ROUTINE_TYPE = 'PROCEDURE'
+        ORDER BY ROUTINE_NAME
+        """
+        vprint(2, "[dim]Querying information_schema.ROUTINES...[/dim]")
+        cursor.execute(proc_query)
+        procs: dict[tuple[str, str], StoredProcedureInfo] = {}
+        for row in cursor.fetchall():
+            key = (row[0], row[1])
+            procs[key] = StoredProcedureInfo(
+                schema=row[0], name=row[1], definition=row[2]
+            )
+
+        param_query = """
+        SELECT
+            SPECIFIC_SCHEMA,
+            SPECIFIC_NAME,
+            PARAMETER_NAME,
+            DATA_TYPE,
+            PARAMETER_MODE
+        FROM information_schema.PARAMETERS
+        WHERE SPECIFIC_SCHEMA = DATABASE()
+            AND ROUTINE_TYPE = 'PROCEDURE'
+        ORDER BY SPECIFIC_NAME, ORDINAL_POSITION
+        """
+        vprint(2, "[dim]Querying information_schema.PARAMETERS...[/dim]")
+        cursor.execute(param_query)
+        for row in cursor.fetchall():
+            key = (row[0], row[1])
+            if key in procs:
+                procs[key].parameters.append(
+                    ProcedureParameter(
+                        name=row[2],
+                        data_type=row[3],
+                        mode=row[4],
+                    )
+                )
+
+        cursor.close()
+        return list(procs.values())
+
+    def close(self, connection: Any) -> None:
+        """Close the database connection."""
+        connection.close()
+
+
+class PostgresAdapter(DatabaseAdapter):
+    """PostgreSQL adapter."""
+
+    def connect(
+        self, server: str, port: int, database: str, username: str, password: str
+    ) -> Any:
+        """Connect to PostgreSQL database."""
+        import psycopg
+
+        vprint(2, f"[dim]psycopg connect → {server}:{port}/{database}[/dim]")
+        return psycopg.connect(
+            host=server,
+            port=port,
+            user=username,
+            password=password,
+            dbname=database,
+            connect_timeout=15,
+        )
+
+    def get_all_tables(self, connection: Any) -> list[TableInfo]:
+        """Get all tables with row counts (estimate from pg_class.reltuples)."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            n.nspname AS schema_name,
+            c.relname AS table_name,
+            c.reltuples::bigint AS row_count
+        FROM pg_class c
+        INNER JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE c.relkind = 'r'
+            AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY n.nspname, c.relname
+        """
+        vprint(2, "[dim]Querying pg_class for tables...[/dim]")
+        cursor.execute(query)
+        tables = [
+            TableInfo(schema=row[0], name=row[1], row_count=int(row[2] or 0))
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return tables
+
+    def get_table_structure(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ColumnInfo]:
+        """Get detailed structure of a table."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            c.column_name,
+            c.data_type,
+            c.character_maximum_length,
+            c.is_nullable,
+            c.column_default,
+            CASE WHEN pk.column_name IS NOT NULL THEN 'YES' ELSE 'NO' END AS is_primary_key,
+            CASE WHEN fk.column_name IS NOT NULL THEN 'YES' ELSE 'NO' END AS is_foreign_key
+        FROM information_schema.columns c
+        LEFT JOIN (
+            SELECT kcu.table_schema, kcu.table_name, kcu.column_name
+            FROM information_schema.table_constraints tc
+            INNER JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+                AND tc.table_name = kcu.table_name
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+        ) pk ON c.table_schema = pk.table_schema
+            AND c.table_name = pk.table_name
+            AND c.column_name = pk.column_name
+        LEFT JOIN (
+            SELECT kcu.table_schema, kcu.table_name, kcu.column_name
+            FROM information_schema.table_constraints tc
+            INNER JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+                AND tc.table_name = kcu.table_name
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+        ) fk ON c.table_schema = fk.table_schema
+            AND c.table_name = fk.table_name
+            AND c.column_name = fk.column_name
+        WHERE c.table_schema = %s AND c.table_name = %s
+        ORDER BY c.ordinal_position
+        """
+        cursor.execute(query, (schema, table))
+        columns = [
+            ColumnInfo(
+                name=row[0],
+                data_type=row[1],
+                max_length=row[2],
+                is_nullable=row[3],
+                default=row[4],
+                is_primary_key=row[5],
+                is_foreign_key=row[6],
+            )
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return columns
+
+    def get_foreign_keys(
+        self, connection: Any, schema: str, table: str
+    ) -> list[ForeignKeyInfo]:
+        """Get foreign key relationships."""
+        cursor = connection.cursor()
+        query = """
+        SELECT
+            tc.constraint_name AS fk_name,
+            kcu.column_name,
+            ccu.table_schema AS referenced_schema,
+            ccu.table_name AS referenced_table,
+            ccu.column_name AS referenced_column
+        FROM information_schema.table_constraints tc
+        INNER JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+            AND tc.table_name = kcu.table_name
+        INNER JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+            AND tc.table_schema = ccu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = %s
+            AND tc.table_name = %s
+        """
+        cursor.execute(query, (schema, table))
+        fks = [
+            ForeignKeyInfo(
+                name=row[0],
+                column=row[1],
+                ref_schema=row[2],
+                ref_table=row[3],
+                ref_column=row[4],
+            )
+            for row in cursor.fetchall()
+        ]
+        cursor.close()
+        return fks
+
+    def get_stored_procedures(self, connection: Any) -> list[StoredProcedureInfo]:
+        """Get all stored procedures (prokind='p') with parameters."""
+        cursor = connection.cursor()
+        proc_query = """
+        SELECT
+            n.nspname AS schema_name,
+            p.proname AS procedure_name,
+            pg_get_functiondef(p.oid) AS procedure_definition
+        FROM pg_proc p
+        INNER JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE p.prokind = 'p'
+            AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY n.nspname, p.proname
+        """
+        vprint(2, "[dim]Querying pg_proc (prokind='p')...[/dim]")
+        cursor.execute(proc_query)
+        procs: dict[tuple[str, str], StoredProcedureInfo] = {}
+        for row in cursor.fetchall():
+            key = (row[0], row[1])
+            procs[key] = StoredProcedureInfo(
+                schema=row[0], name=row[1], definition=row[2]
+            )
+
+        param_query = """
+        SELECT
+            r.routine_schema,
+            r.routine_name,
+            p.parameter_name,
+            p.data_type,
+            p.parameter_mode
+        FROM information_schema.routines r
+        INNER JOIN information_schema.parameters p
+            ON r.specific_schema = p.specific_schema
+            AND r.specific_name = p.specific_name
+        WHERE r.routine_type = 'PROCEDURE'
+            AND r.specific_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY r.routine_name, p.ordinal_position
+        """
+        vprint(2, "[dim]Querying information_schema.parameters...[/dim]")
+        cursor.execute(param_query)
+        for row in cursor.fetchall():
+            key = (row[0], row[1])
+            if key in procs:
+                procs[key].parameters.append(
+                    ProcedureParameter(
+                        name=row[2],
+                        data_type=row[3],
+                        mode=row[4],
+                    )
+                )
+
+        cursor.close()
+        return list(procs.values())
+
     def close(self, connection: Any) -> None:
         """Close the database connection."""
         connection.close()
@@ -376,10 +751,11 @@ def get_adapter(db_type: DbType) -> DatabaseAdapter:
     """Get the appropriate database adapter."""
     if db_type == DbType.MSSQL:
         return MSSQLAdapter()
-    elif db_type == DbType.MYSQL:
+    if db_type == DbType.MYSQL:
         return MySQLAdapter()
-    else:
-        raise ValueError(f"Unsupported database type: {db_type}")
+    if db_type == DbType.POSTGRES:
+        return PostgresAdapter()
+    raise ValueError(f"Unsupported database type: {db_type}")
 
 
 def detect_db_type(server: str, port: int | None) -> DbType:
@@ -395,7 +771,9 @@ def detect_db_type(server: str, port: int | None) -> DbType:
     # Detect based on port
     if port == 3306:
         return DbType.MYSQL
-    elif port == 1433 or port is None:
+    if port == 5432:
+        return DbType.POSTGRES
+    if port == 1433 or port is None:
         return DbType.MSSQL
 
     # Default to MSSQL
@@ -420,7 +798,9 @@ def load_user_profiles() -> dict[str, dict[str, Any]]:
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not load profiles from {CONFIG_FILE}: {e}[/yellow]")
+            console.print(
+                f"[yellow]Warning: Could not load profiles from {CONFIG_FILE}: {e}[/yellow]"
+            )
     return {}
 
 
@@ -495,7 +875,9 @@ def build_config(
         config["password"] = os.environ.get("DB_PASSWORD", "")
 
     # Parse server:port if embedded in server string
-    config["server"], parsed_port = parse_server_port(config.get("server", ""), config.get("port"))
+    config["server"], parsed_port = parse_server_port(
+        config.get("server", ""), config.get("port")
+    )
     if parsed_port:
         config["port"] = parsed_port
 
@@ -541,23 +923,28 @@ def explore_database(
     """Main database exploration logic."""
     rprint(f"[bold]Exploring database:[/bold] {database} on {server}:{port}")
     rprint(f"[bold]Database type:[/bold] {db_type.value}")
+    vprint(1, f"[dim]Username: {username}[/dim]")
     rprint("=" * 80)
 
-    # Get appropriate adapter
     adapter = get_adapter(db_type)
 
     # Connect
     rprint("Connecting to database...")
     try:
         conn = adapter.connect(server, port, database, username, password)
-        rprint("[green]Connected successfully[/green]\n")
     except Exception as e:
-        rprint(f"[red]Failed to connect: {e}[/red]")
-        raise typer.Exit(1)
+        report_error("connecting to database", e, fatal=True)
+        return  # unreachable, keeps type checkers happy
+    rprint("[green]Connected successfully[/green]\n")
 
     # Get all tables
     rprint("Fetching all tables...")
-    tables = adapter.get_all_tables(conn)
+    try:
+        tables = adapter.get_all_tables(conn)
+    except Exception as e:
+        report_error("fetching the table list", e)
+        adapter.close(conn)
+        raise typer.Exit(1)
     rprint(f"[green]Found {len(tables)} tables[/green]\n")
 
     # Display summary using Rich table
@@ -577,26 +964,62 @@ def explore_database(
 
     # Get detailed structure for each table
     tables_info = []
+    failed_tables: list[tuple[str, str, str]] = []
     for i, tbl in enumerate(tables, 1):
-        rprint(f"  [{i}/{len(tables)}] Processing {tbl.schema}.{tbl.name}...", end="\r")
+        rprint(
+            f"  [{i}/{len(tables)}] Processing {tbl.schema}.{tbl.name}...", end="\r"
+        )
 
         try:
             columns = adapter.get_table_structure(conn, tbl.schema, tbl.name)
-            foreign_keys = adapter.get_foreign_keys(conn, tbl.schema, tbl.name)
-
-            tables_info.append(
-                {
-                    "schema": tbl.schema,
-                    "table": tbl.name,
-                    "row_count": tbl.row_count,
-                    "columns": columns,
-                    "foreign_keys": foreign_keys,
-                }
-            )
         except Exception as e:
-            rprint(f"\n  [yellow]Warning: Could not get structure for {tbl.schema}.{tbl.name}: {e}[/yellow]")
+            failed_tables.append((tbl.schema, tbl.name, "structure"))
+            rprint(
+                f"\n[yellow]Warning: structure fetch failed for "
+                f"{tbl.schema}.{tbl.name}: {e}[/yellow]"
+            )
+            if VERBOSE >= 3:
+                console.print_exception(show_locals=False)
+            continue
+
+        try:
+            foreign_keys = adapter.get_foreign_keys(conn, tbl.schema, tbl.name)
+        except Exception as e:
+            failed_tables.append((tbl.schema, tbl.name, "foreign keys"))
+            rprint(
+                f"\n[yellow]Warning: foreign-key fetch failed for "
+                f"{tbl.schema}.{tbl.name}: {e}[/yellow]"
+            )
+            if VERBOSE >= 3:
+                console.print_exception(show_locals=False)
+            foreign_keys = []
+
+        tables_info.append(
+            {
+                "schema": tbl.schema,
+                "table": tbl.name,
+                "row_count": tbl.row_count,
+                "columns": columns,
+                "foreign_keys": foreign_keys,
+            }
+        )
 
     rprint(f"\n[green]Processed {len(tables_info)} tables[/green]")
+    if failed_tables:
+        rprint(
+            f"[yellow]Encountered {len(failed_tables)} per-table errors "
+            f"(use -vvv for tracebacks).[/yellow]"
+        )
+
+    # Stored procedures
+    rprint("\nFetching stored procedures...")
+    procedures: list[StoredProcedureInfo] = []
+    try:
+        procedures = adapter.get_stored_procedures(conn)
+        rprint(f"[green]Found {len(procedures)} stored procedures[/green]")
+    except Exception as e:
+        report_error("fetching stored procedures", e)
+        rprint("[yellow]Continuing without stored procedure data.[/yellow]")
 
     # Determine output filename
     if output_path:
@@ -605,9 +1028,9 @@ def explore_database(
         json_filename = Path(f"{database}_structure.json")
 
     # Create JSON data
-    json_data = []
+    json_tables = []
     for info in tables_info:
-        json_data.append(
+        json_tables.append(
             {
                 "schema": info["schema"],
                 "table": info["table"],
@@ -637,8 +1060,37 @@ def explore_database(
             }
         )
 
-    with open(json_filename, "w", encoding="utf-8") as f:
-        json.dump(json_data, f, indent=2, default=str)
+    json_procedures = [
+        {
+            "schema": proc.schema,
+            "name": proc.name,
+            "definition": proc.definition,
+            "parameters": [
+                {
+                    "name": param.name,
+                    "type": param.data_type,
+                    "mode": param.mode,
+                }
+                for param in proc.parameters
+            ],
+        }
+        for proc in procedures
+    ]
+
+    json_data = {
+        "database": database,
+        "type": db_type.value,
+        "tables": json_tables,
+        "stored_procedures": json_procedures,
+    }
+
+    try:
+        with open(json_filename, "w", encoding="utf-8") as f:
+            json.dump(json_data, f, indent=2, default=str)
+    except OSError as e:
+        report_error(f"writing output file {json_filename}", e)
+        adapter.close(conn)
+        raise typer.Exit(1)
 
     rprint(f"\n[green]Exported to: {json_filename}[/green]")
 
@@ -657,11 +1109,29 @@ def explore_database(
     total_fks = sum(len(info["foreign_keys"]) for info in tables_info)
     rprint(f"Total foreign keys: {total_fks}")
 
+    rprint(f"Total stored procedures: {len(procedures)}")
+    if procedures:
+        total_proc_params = sum(len(p.parameters) for p in procedures)
+        rprint(f"Total procedure parameters: {total_proc_params}")
+
     # Show tables with most rows
     rprint("\n[bold]Tables with most rows:[/bold]")
-    sorted_by_rows = sorted(tables_info, key=lambda x: x["row_count"], reverse=True)[:10]
+    sorted_by_rows = sorted(tables_info, key=lambda x: x["row_count"], reverse=True)[
+        :10
+    ]
     for info in sorted_by_rows:
         rprint(f"  {info['schema']}.{info['table']:40} {info['row_count']:>10,} rows")
+
+    if VERBOSE >= 1 and procedures:
+        rprint("\n[bold]Stored procedures:[/bold]")
+        for proc in procedures[:20]:
+            param_summary = ", ".join(
+                f"{p.mode or 'IN'} {p.name or '?'}:{p.data_type}"
+                for p in proc.parameters
+            )
+            rprint(f"  {proc.schema}.{proc.name}({param_summary})")
+        if len(procedures) > 20:
+            rprint(f"  [dim]... and {len(procedures) - 20} more[/dim]")
 
     adapter.close(conn)
     rprint("\n[green]Done![/green]")
@@ -671,7 +1141,9 @@ def explore_database(
 def explore(
     profile: Annotated[
         Optional[str],
-        typer.Option("--profile", "-p", help="Named profile to use (e.g., transpas-e3-admin)"),
+        typer.Option(
+            "--profile", "-p", help="Named profile to use (e.g., transpas-e3-admin)"
+        ),
     ] = None,
     server: Annotated[
         Optional[str],
@@ -679,7 +1151,10 @@ def explore(
     ] = None,
     port: Annotated[
         Optional[int],
-        typer.Option("--port", help="Database port (default: 1433 for MSSQL, 3306 for MySQL)"),
+        typer.Option(
+            "--port",
+            help="Database port (default: 1433 MSSQL, 3306 MySQL, 5432 Postgres)",
+        ),
     ] = None,
     database: Annotated[
         Optional[str],
@@ -691,7 +1166,9 @@ def explore(
     ] = None,
     password: Annotated[
         Optional[str],
-        typer.Option("--password", "-P", help="Database password (or set DB_PASSWORD env var)"),
+        typer.Option(
+            "--password", "-P", help="Database password (or set DB_PASSWORD env var)"
+        ),
     ] = None,
     db_type: Annotated[
         Optional[DbType],
@@ -709,16 +1186,26 @@ def explore(
         bool,
         typer.Option("--overwrite", help="Overwrite output file if it exists"),
     ] = False,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose",
+            "-v",
+            count=True,
+            help="Increase verbosity: -v config details, -vv SQL queries, -vvv full tracebacks",
+        ),
+    ] = 0,
 ):
     """Explore a database structure and export to JSON.
 
-    Supports both Microsoft SQL Server and MySQL databases.
+    Supports Microsoft SQL Server, MySQL, and PostgreSQL.
     You can either use a named profile or specify connection details directly.
     Profile settings can be overridden with explicit options.
 
     The database type is auto-detected from the port if not specified:
     - Port 1433 (default) -> MSSQL
     - Port 3306 -> MySQL
+    - Port 5432 -> PostgreSQL
 
     Examples:
         # Use a named profile
@@ -732,12 +1219,16 @@ def explore(
         dbexplore explore -s localhost:3306 -d mydb -u root -P mypassword
         dbexplore explore -s localhost -d mydb -u root -P mypassword -t mysql
 
-        # Specify custom output path
-        dbexplore explore -p myprofile -o ./exports/mydb.json
+        # Connect to PostgreSQL
+        dbexplore explore -s localhost --port 5432 -d mydb -u postgres -P mypassword
+        dbexplore explore -s localhost -d mydb -u postgres -P mypassword -t postgres
 
-        # Overwrite existing file
-        dbexplore explore -p myprofile -o ./exports/mydb.json --overwrite
+        # Specify custom output path / overwrite / verbose
+        dbexplore explore -p myprofile -o ./exports/mydb.json --overwrite -vv
     """
+    global VERBOSE
+    VERBOSE = verbose
+
     output_path = validate_output_path(output, overwrite)
 
     config = build_config(profile, server, port, database, username, password, db_type)
@@ -749,6 +1240,12 @@ def explore(
         config["port"] = DEFAULT_PORTS[final_db_type.value]
 
     validate_config(config)
+
+    vprint(
+        1,
+        f"[dim]Resolved config: server={config['server']} port={config['port']} "
+        f"database={config['database']} type={final_db_type.value}[/dim]",
+    )
 
     explore_database(
         server=config["server"],
@@ -768,7 +1265,9 @@ def profiles():
 
     if not all_profiles:
         rprint("[yellow]No profiles configured yet.[/yellow]")
-        rprint(f"[dim]Use 'add-profile' to create one, or manually edit: {CONFIG_FILE}[/dim]")
+        rprint(
+            f"[dim]Use 'add-profile' to create one, or manually edit: {CONFIG_FILE}[/dim]"
+        )
         return
 
     table = Table(title="Available Profiles")
@@ -801,12 +1300,14 @@ def add_profile(
         Optional[int],
         typer.Option("--port", help="Database port"),
     ] = None,
-    database: Annotated[str, typer.Option("--database", "-d", help="Database name")] = "",
+    database: Annotated[
+        str, typer.Option("--database", "-d", help="Database name")
+    ] = "",
     username: Annotated[str, typer.Option("--username", "-u", help="Username")] = "",
     password: Annotated[str, typer.Option("--password", "-P", help="Password")] = "",
     db_type: Annotated[
         Optional[DbType],
-        typer.Option("--type", "-t", help="Database type (mssql or mysql)"),
+        typer.Option("--type", "-t", help="Database type (mssql, mysql, postgres)"),
     ] = None,
 ):
     """Add or update a profile in the user config file."""

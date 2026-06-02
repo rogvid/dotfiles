@@ -22,14 +22,12 @@ ZSH_THEME=""
 plugins=(
     fzf-tab
     git
-    ssh-agent
     zsh-autosuggestions
     zsh-syntax-highlighting
     you-should-use
 )
 
 # plugin configurations
-zstyle :omz:plugins:ssh-agent identities id_ed25519_flowtale id_ed25519_personal id_git_personal
 zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
 
 source $ZSH/oh-my-zsh.sh
@@ -111,9 +109,19 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
 if [[ $(grep -i Microsoft /proc/version) ]]; then
-  echo "In WSL"
   export ZED_ALLOW_EMULATED_GPU=1
   alias zed="WAYLAND_DISPLAY='' zed"
+  #
+  # Forward Windows SSH agent to WSL2 via npiperelay
+  export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+  if [[ ! -S "$SSH_AUTH_SOCK" ]] || ! ssh-add -l &>/dev/null; then
+    rm -f "$SSH_AUTH_SOCK"
+    (setsid socat UNIX-LISTEN:"$SSH_AUTH_SOCK",fork EXEC:"$HOME/.local/bin/npiperelay.exe -ei -s //./pipe/openssh-ssh-agent",nofork &>/dev/null &)
+  fi
 fi
 
 
+
+# peon-ping quick controls
+alias peon="bash /home/kvist/.claude/hooks/peon-ping/peon.sh"
+[ -f /home/kvist/.claude/hooks/peon-ping/completions.bash ] && source /home/kvist/.claude/hooks/peon-ping/completions.bash

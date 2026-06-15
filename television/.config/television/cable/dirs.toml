@@ -1,0 +1,36 @@
+[metadata]
+name = "dirs"
+description = "A channel to select from directories"
+requirements = ["fd"]
+
+[source]
+# Sort entries by path depth (shallowest first) by counting '/' separators;
+# no_sort tells tv to preserve this order instead of re-ranking by fuzzy match
+# score, so matches stay ordered shallowest-first as you type.
+command = [
+  "fd -t d | awk '{n=gsub(/\\//,\"/\"); print n, $0}' | sort -n | cut -d' ' -f2-",
+  "fd -t d --hidden | awk '{n=gsub(/\\//,\"/\"); print n, $0}' | sort -n | cut -d' ' -f2-",
+]
+no_sort = true
+
+[preview]
+command = "ls -la --color=always '{}'"
+
+[keybindings]
+enter = "actions:attach"
+shortcut = "f2"
+
+[actions.attach]
+description = "Switch to or open directory in tmux session"
+command = "d=$(realpath '{}'); s=$(basename \"$d\" | tr . _); tmux has-session -t \"=$s\" 2>/dev/null || tmux new-session -ds \"$s\" -c \"$d\"; tmux switch-client -t \"=$s\" 2>/dev/null || tmux attach-session -t \"=$s\""
+mode = "execute"
+
+[actions.cd]
+description = "Open a shell in the selected directory"
+command = "cd '{}' && $SHELL"
+mode = "execute"
+
+[actions.goto_parent_dir]
+description = "Re-opens tv in the parent directory"
+command = "tv dirs .."
+mode = "execute"

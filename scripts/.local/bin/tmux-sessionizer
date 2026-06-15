@@ -18,8 +18,18 @@ else
     | while read -r dir; do find "$dir" -mindepth 1 -maxdepth 1 -type d; done \
     | sed 's/^/[WT] /')
 
-  # Combine both lists and use fzf
-  selected=$(printf "%s\n%s" "$projects" "$worktrees" | fzf --preview 'tree -C $(echo {} | sed "s/^\[WT\] //") | head -200')
+  # Combine both lists and use fzf. --print-query emits the typed query on the
+  # first line so we can fall back to zoxide when nothing in the list matches.
+  fzf_out=$(printf "%s\n%s" "$projects" "$worktrees" \
+    | fzf --print-query --preview 'tree -C $(echo {} | sed "s/^\[WT\] //") | head -200')
+
+  query=$(echo "$fzf_out" | sed -n '1p')
+  selected=$(echo "$fzf_out" | sed -n '2p')
+
+  # No project/worktree matched the query — ask zoxide for a directory.
+  if [[ -z $selected && -n $query ]]; then
+    selected=$(zoxide query -- "$query" 2>/dev/null)
+  fi
 
   # Remove [WT] prefix if present
   selected=$(echo "$selected" | sed 's/^\[WT\] //')

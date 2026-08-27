@@ -1,0 +1,85 @@
+# Run by prek (https://github.com/j178/prek), a drop-in pre-commit runner.
+#
+#   mise run hooks    # install into .git/hooks
+#   mise run lint     # run everything against every file, as CI does
+#
+# The gate is deliberately narrow: block secrets and broken files, do not
+# reformat 165 hand-maintained dotfiles. Tool versions come from mise.toml so
+# a hook and CI cannot disagree about what "clean" means.
+
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # The last line of defence if gitleaks' entropy rules miss a key.
+      - id: detect-private-key
+      # A committed key or dump is usually also a surprisingly large file.
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: check-json
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+        # Sourced, not executed: the shebang is there for editors and
+        # shellcheck, and an exec bit on them would be a lie.
+        exclude: |
+          (?x)^(
+            scripts/\.local/bin/git-wt-common\.sh
+            |zsh/zsh\.d/.*
+            |\.evals/cases/.*
+          )$
+
+  # The repo's own convention: conventional commits.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # These resolve their tool through mise so a commit from any shell - or
+  # from an editor that never sourced a profile - uses the pinned version
+  # instead of failing on PATH.
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (staged changes)
+        entry: mise exec -- gitleaks git --staged --redact --no-banner
+        language: system
+        pass_filenames: false
+
+      - id: shellcheck
+        name: shellcheck
+        entry: mise exec -- shellcheck --severity=warning
+        language: system
+        types: [shell]
+        # shellcheck has no zsh dialect - it reports parse errors on valid
+        # zsh - and direnvrc/rc files are sourced fragments with no shebang.
+        # cht.sh is vendored from cheat.sh and carries its own directives.
+        exclude: |
+          (?x)^(
+            zsh/.*
+            |direnv/.*
+            |.*\.zsh$
+            |scripts/\.local/bin/cht\.sh
+          )$
+
+      - id: ruff
+        name: ruff
+        entry: mise exec -- ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+
+      - id: agent-scan-tests
+        name: agent-scan classifier tests
+        entry: scripts/tests/test-agent-scan
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/agent-scan|tests/test-agent-scan)$

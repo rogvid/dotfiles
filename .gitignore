@@ -1,3 +1,89 @@
+# This repo is public-facing and holds real configuration, so the rules below
+# lean towards refusing anything that looks like key material or machine-local
+# state. Secrets that must be versioned belong in sops-encrypted secrets.yaml
+# (see .sops.yaml), never in plaintext.
+
+# --- key material -----------------------------------------------------------
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.asc
+*.kbx
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+*.ppk
+# age/sops identities. secrets.yaml is ciphertext and stays tracked.
+*.agekey
+key.txt
+keys.txt
+!secrets.yaml
+
+# --- credentials and tokens -------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.netrc
+.pgpass
+.npmrc
+.pypirc
+*credentials*.json
+*client_secret*.json
+*service-account*.json
+*service_account*.json
+.aws/credentials
+auth.json
+token
+*.token
+gh_token*
+*password*
+restic-password
+.secrets
+secrets.local.*
+
+# --- backups and merge debris that leak resolved secrets --------------------
+# `settings.json.bak.<epoch>` style backups routinely contain expanded keys.
+*.bak
+*.bak.*
+*.orig
+*.rej
+*.old
+*.save
+*~
+
+# --- machine-local state ----------------------------------------------------
 .dotfiles
 tmux/.tmux/plugins/*
 nvim/.config/nvim/lazy-lock.json
+*.log
+*.pid
+*.sock
+.direnv/
+.mise.local.toml
+mise.local.toml
+
+# --- caches and build output ------------------------------------------------
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+.cache/
+
+# --- editor and OS noise ----------------------------------------------------
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.idea/
+*.code-workspace

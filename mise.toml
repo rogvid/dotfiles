@@ -1,0 +1,35 @@
+# Development environment for this repo (not stowed - see .stow-ignore-list).
+# CI installs the same versions via jdx/mise-action, so local hooks and the
+# pipeline run identical tools.
+
+[tools]
+gitleaks = "latest"
+prek = "latest"
+ruff = "latest"
+shellcheck = "latest"
+uv = "latest"
+
+[settings]
+# Skip releases younger than two weeks: a compromised release is usually
+# caught and yanked within days.
+minimum_release_age = "14d"
+
+[tasks.hooks]
+description = "Install the prek git hooks into .git/hooks"
+run = "prek install --install-hooks"
+
+[tasks.lint]
+description = "Run every hook against every file, as CI does"
+run = "prek run --all-files --show-diff-on-failure"
+
+[tasks.lint-shell]
+description = "Full shellcheck report, warnings included (not enforced)"
+run = "git ls-files -z | xargs -0 file --mime-type | grep -E 'x-(shellscript|sh)$' | cut -d: -f1 | xargs shellcheck --severity=warning || true"
+
+[tasks.secrets]
+description = "Scan the full git history for secrets"
+run = "gitleaks git --no-banner --redact --verbose ."
+
+[tasks.test]
+description = "Run the repo's own tests"
+run = "scripts/tests/test-agent-scan"

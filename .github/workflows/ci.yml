@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # A secret can be leaked by a commit that never opens a PR, and gitleaks'
+  # rules improve over time, so re-scan the history on a schedule too.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hooks:
+    name: hooks (prek)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          # mise.toml pins the same tools the local hooks use.
+          install: true
+          cache: true
+      - name: Run every hook against every file
+        run: prek run --all-files --show-diff-on-failure --color always
+
+  secrets:
+    name: secret scan (full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The staged-diff hook only ever sees one commit. Here we want the
+          # whole history, including anything that predates the hooks.
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+        with:
+          install: true
+          cache: true
+      - name: gitleaks
+        run: gitleaks git --no-banner --redact --verbose .
+
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          install: true
+          cache: true
+      - name: agent-scan classifier
+        run: mise run test

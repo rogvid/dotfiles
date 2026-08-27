@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Import the utils
-source "${HOME}/.local/scripts/utils.sh"
+source "${HOME}/.local/bin/utils.sh"
 
 PACKAGE_NAME="fabric"
 URL="https://github.com/danielmiessler/fabric/releases/download/v1.4.202/fabric-linux-amd64"

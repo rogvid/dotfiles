@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Import the utils
-source "${HOME}/.local/scripts/utils.sh"
+source "${HOME}/.local/bin/utils.sh"
 
 PACKAGE_NAME="opencode"
 URL="https://opencode.ai/install"

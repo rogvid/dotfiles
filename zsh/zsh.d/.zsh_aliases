@@ -16,7 +16,7 @@ alias pbpaste='xclip -selection clipboard -o'
 # Create and remove temporary environments
 alias mktmpenv='cd $(mktemp -d --suffix=.tempenv)'
 alias rmtmpenv='cd ~ && find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec sudo rm -rf {} \;'
-alias scripts='eza -l --icons --git -a ~/.local/scripts/'
+alias scripts='eza -l --icons --git -a ~/.local/bin/'
 
 if command -v -- claude > /dev/null 2>&1; then
   claude_bin=$(which claude)

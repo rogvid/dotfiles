@@ -1,0 +1,38 @@
+# Skills installed into the canonical pool at ~/.agents/skills.
+#
+# Every harness except Claude Code reads that path natively; `npx skills` writes the
+# one adapter symlink Claude Code needs. Format: <owner/repo> <skill>
+#
+# Add a line, run `agent-setup`. Remove a line and the skill stays on disk until you
+# run `npx skills remove <skill>` - deliberately, so nothing disappears silently.
+
+vercel-labs/agent-browser        agent-browser
+addyosmani/agent-skills          documentation-and-adrs
+mattpocock/skills                grilling
+mattpocock/skills                improve-codebase-architecture
+kunchenguid/lavish-axi           lavish
+daymade/claude-code-skills       ui-designer
+
+# --- deliberately NOT installed -------------------------------------------------
+#
+# Superseded generations. Pocock renamed these; you had three layers installed at
+# once and none was current. If you want that flow back, install to-spec / to-tickets
+# rather than any of these:
+#   mattpocock/skills   grill-me            -> superseded by grilling
+#   mattpocock/skills   grill-with-docs     -> superseded by grilling
+#   mattpocock/skills   write-a-prd         -> superseded by to-spec
+#   mattpocock/skills   prd-to-issues       -> superseded by to-tickets
+#
+# Duplicates of something already present:
+#   anthropics/skills   frontend-design     -> the frontend-design plugin covers this
+#
+# Kept despite overlap with superpowers (superpowers is not installed, so this is
+# the TDD skill the implementer agent references):
+#   mattpocock/skills   tdd
+#
+# Works against a curated setup by design:
+#   vercel-labs/skills  find-skills         -> exists to install more skills globally
+#
+# In the pool from earlier experiments, never linked into a harness:
+#   fastapi, fastapi-expert, pytest, python-async-patterns,
+#   python-patterns, python-testing-patterns

@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Install the parts of the agent setup that dotfiles cannot carry.
+#
+# Stow handles anything that is a file you own. This handles the rest: third-party
+# programs with their own installers, and skills fetched from upstream repos. Vendoring
+# either would mean fighting their updaters forever, so they are declared, not copied.
+#
+#   agent-setup            install what is missing
+#   agent-setup --check    report what would change, touch nothing
+#
+# Safe to re-run. Does not stow - run `stow --restow --target="$HOME" agents claude`
+# yourself once you are happy with what this reports.
+set -euo pipefail
+
+DOTFILES="${DOTFILES:-$HOME/personal/projects/dotfiles}"
+SKILL_LIST="${DOTFILES}/agents/.agents/skills.list"
+PEON_DIR="${HOME}/.claude/hooks/peon-ping"
+CHECK=0
+[[ "${1:-}" == "--check" ]] && CHECK=1
+
+say()  { printf '  %s\n' "$*"; }
+head_() { printf '\n%s\n' "$*"; }
+would() { (( CHECK )) && { say "would: $*"; return 1; }; return 0; }
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { echo "missing required command: $1" >&2; exit 1; }
+}
+
+install_peon_ping() {
+  head_ "peon-ping"
+  if [[ -x "${PEON_DIR}/peon.sh" ]]; then
+    say "already installed at ${PEON_DIR}"
+    return
+  fi
+  say "not installed"
+  would "curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash" || return
+  # Its installer owns this directory and registers its own hooks in settings.json.
+  # We keep only config.json under version control; packs and state stay local.
+  curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
+  say "installed - re-stow the claude package to restore your config.json"
+}
+
+install_skills() {
+  head_ "skills -> ~/.agents/skills"
+  [[ -f "$SKILL_LIST" ]] || { say "no manifest at $SKILL_LIST"; return; }
+  local repo skill missing=0
+  while read -r repo skill; do
+    [[ -z "${repo:-}" || "${repo:0:1}" == "#" ]] && continue
+    if [[ -e "${HOME}/.agents/skills/${skill}" ]]; then
+      say "present  ${skill}"
+      continue
+    fi
+    missing=1
+    would "npx -y skills add ${repo} --skill ${skill} -g -y -a claude-code" || continue
+    say "adding   ${skill}"
+    npx -y skills add "$repo" --skill "$skill" -g -y -a claude-code
+    if [[ ! -e "${HOME}/.agents/skills/${skill}" ]]; then
+      # Non-interactive installs land in ~/.claude/skills as a copy; move into
+      # the canonical pool and replace with the adapter symlink.
+      mv "${HOME}/.claude/skills/${skill}" "${HOME}/.agents/skills/${skill}"
+      ln -s "../../.agents/skills/${skill}" "${HOME}/.claude/skills/${skill}"
+    fi
+  done < "$SKILL_LIST"
+  (( missing )) || say "all declared skills present"
+}
+
+report_undeclared() {
+  head_ "in the pool but not declared"
+  local declared
+  declared="$(grep -vE '^\s*#|^\s*$' "$SKILL_LIST" | awk '{print $2}' | sort -u)"
+  comm -23 <(ls "${HOME}/.agents/skills" 2>/dev/null | sort) <(printf '%s\n' "$declared") \
+    | sed 's/^/  /' | grep . || say "none"
+  say "remove any you no longer want with: npx skills remove <name>"
+}
+
+main() {
+  require_cmd curl
+  require_cmd npx
+  (( CHECK )) && echo "check mode - nothing will be modified"
+  install_peon_ping
+  install_skills
+  report_undeclared
+  head_ "next"
+  say "stow --restow --target=\"\$HOME\" agents claude"
+}
+
+main "$@"

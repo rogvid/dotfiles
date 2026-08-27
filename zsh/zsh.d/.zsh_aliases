@@ -18,6 +18,16 @@ alias mktmpenv='cd $(mktemp -d --suffix=.tempenv)'
 alias rmtmpenv='cd ~ && find /tmp/ -maxdepth 1 -type d -name *.tempenv -print -exec sudo rm -rf {} \;'
 alias scripts='eza -l --icons --git -a ~/.local/scripts/'
 
+if $(command -v -- claude > /dev/null 2>&1); then
+  claude_bin=$(which claude)
+  if ! [ -d ~/.claude-personal ]; then
+    mkdir ~/.claude-personal
+  fi
+  alias claudia='CLAUDE_CONFIG_DIR=~/.claude-personal $claude_bin --dangerously-skip-permissions'
+else
+  echo "No claude found on system!";
+fi
+
 # Bat niceness
 # MANPAGER="sh -c 'col -bx | bat -l man -p'"
 alias -g -- --help='--help 2>&1 | bat --language=help --style=plain'

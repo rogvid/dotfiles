@@ -44,6 +44,9 @@ jobs:
         with:
           install: true
           cache: true
+          # The hooks job writes this cache; racing it only logs a failed
+          # reservation.
+          cache_save: false
       - name: gitleaks
         run: gitleaks git --no-banner --redact --verbose .
 
@@ -56,5 +59,6 @@ jobs:
         with:
           install: true
           cache: true
+          cache_save: false
       - name: agent-scan classifier
         run: mise run test

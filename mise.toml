@@ -22,6 +22,20 @@ run = "prek install --install-hooks"
 description = "Run every hook against every file, as CI does"
 run = "prek run --all-files --show-diff-on-failure"
 
+[tasks.lint-python]
+description = "ruff over .py files and the uv-script tools identify cannot tag"
+# `#!/usr/bin/env -S uv run --script` contains no "python", so identify tags
+# those files as plain text and a types-based hook silently skips them.
+run = '''
+{ git ls-files -- '*.py' '*.pyi'
+  git ls-files | while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    head -1 "$f" 2>/dev/null | grep -qE '^#!.*(python|uv run --script)' \
+      && printf '%s\n' "$f"
+  done
+} | sort -u | xargs -r ruff check --force-exclude
+'''
+
 [tasks.lint-shell]
 description = "Full shellcheck report, warnings included (not enforced)"
 run = "git ls-files -z | xargs -0 file --mime-type | grep -E 'x-(shellscript|sh)$' | cut -d: -f1 | xargs shellcheck --severity=warning || true"

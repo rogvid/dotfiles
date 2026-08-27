@@ -71,11 +71,19 @@ repos:
             |scripts/\.local/bin/cht\.sh
           )$
 
+      # Not types-based: identify cannot tell that a file whose shebang is
+      # `uv run --script` is python, so a types filter skipped every tool in
+      # scripts/ and only ever linted real .py files.
       - id: ruff
-        name: ruff
-        entry: mise exec -- ruff check --force-exclude
+        name: ruff (.py and uv scripts)
+        entry: mise run lint-python
         language: system
-        types_or: [python, pyi]
+        pass_filenames: false
+        files: |
+          (?x)^(
+            .*\.pyi?
+            |scripts/(\.local/bin|tests)/[^/]+
+          )$
 
       - id: agent-scan-tests
         name: agent-scan classifier tests

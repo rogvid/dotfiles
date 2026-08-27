@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Sourced library: callers use the palette below, but a linter only ever sees
+# one file at a time.
+# shellcheck disable=SC2034
 set -euo pipefail
 
 # Colors for output (using $'...' so variables contain real escape characters)

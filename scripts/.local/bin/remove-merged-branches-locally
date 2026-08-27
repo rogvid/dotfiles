@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Check if ripgrep exists
-[ command -v rg ] &>/dev/null && echo "Command expects ripgrep to be installed" && return 1
+if ! command -v rg >/dev/null 2>&1; then
+  echo "Command expects ripgrep to be installed" >&2
+  exit 1
+fi
 git branch --merged | rg -v '(^\*|master|main|dev)' >/tmp/merged-branches && vi /tmp/merged-branches && xargs git branch -d </tmp/merged-branches
 # Prune tracking of remote branches that don't exist anymore
 git remote prune origin

@@ -1,15 +1,22 @@
 #!/bin/bash
 set -eu
 
+here="$(dirname "$0")"
+
 restic backup \
   -r ~/restic-repo \
   --exclude-caches \
-  --files-from $(dirname $0)/restic-include \
-  --exclude-file $(dirname $0)/restic-exclude \
-  --password-file $(dirname $0)/restic-password
+  --files-from "$here/restic-include" \
+  --exclude-file "$here/restic-exclude" \
+  --password-file "$here/restic-password"
 
-restic backup \
-  -r /media/rogvidarge/T7/restic-ft-backup \
-  --password-file 
-  --verbose backup ~/personal
-restic backup -r /media/rogvidarge/T7/restic-ft-backup --verbose backup ~/work
+# TODO: the T7 external-drive backups below never ran. As written the second
+# invocation passed --password-file with no argument and then broke the line
+# continuation, so `--verbose` was executed as a command name, and the third
+# repeated `backup` twice. Re-enable once the password file for the T7 repo is
+# decided - it is deliberately not guessed here.
+#
+# restic backup -r /media/rogvidarge/T7/restic-ft-backup \
+#   --password-file <path> --verbose ~/personal
+# restic backup -r /media/rogvidarge/T7/restic-ft-backup \
+#   --password-file <path> --verbose ~/work

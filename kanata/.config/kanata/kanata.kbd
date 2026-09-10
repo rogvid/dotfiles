@@ -2,6 +2,15 @@
 ;; defcfg is required for handling processing of unmapped keys
 (defcfg
   process-unmapped-keys yes
+  ;; Explicit allowlist so kanata never tries to grab a device it
+  ;; shouldn't (e.g. a Bluetooth AVRCP passthrough device from
+  ;; connecting AirPods), which previously crashed the whole service.
+  linux-dev-names-include (
+    "AT Translated Set 2 keyboard"
+    "ThinkPad Extra Buttons"
+    "Yubico YubiKey OTP+FIDO+CCID"
+    "ydotoold virtual device"
+  )
 )
 
 ;; defsrc is where we define the keys we want to modify

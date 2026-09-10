@@ -23,6 +23,11 @@ if command -v -- claude > /dev/null 2>&1; then
   if ! [ -d ~/.claude-personal ]; then
     mkdir ~/.claude-personal
   fi
+  # ~/.claude-personal should only differ from ~/.claude in credentials/auth
+  # (.credentials.json, .claude.json), so config is symlinked in from ~/.claude.
+  if [ "$(readlink -f ~/.claude-personal/settings.json 2>/dev/null)" != "$(readlink -f ~/.claude/settings.json 2>/dev/null)" ]; then
+    ln -sf ~/.claude/settings.json ~/.claude-personal/settings.json
+  fi
   alias claudia='CLAUDE_CONFIG_DIR=~/.claude-personal $claude_bin --dangerously-skip-permissions'
 else
   echo "No claude found on system!";

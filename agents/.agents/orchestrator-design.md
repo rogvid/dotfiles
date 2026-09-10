@@ -63,12 +63,10 @@ Replaced with announce-and-proceed, stating the one assumption that would flip t
 Zero keystrokes to accept, one sentence to redirect.
 - Line-by-line diff review, watching tests, per-edit approval.
 
-The governing rule, from Pocock's `grilling` skill:
+The governing rule:
 
 > If a fact can be found by exploring the environment, look it up rather than asking me.
 > The decisions, though, are mine.
-
-He added that as a bug fix - the older blanket wording read as license for an agent to answer its own *decisions* once grilling ran inside another skill's frame.
 
 ## The failure this is built to prevent
 
@@ -83,22 +81,6 @@ Countermeasures, all in the prompts:
 2. Two-attempt budget scaled by stakes, then escalate with the diff.
 3. Verifier diffs test files and hard-fails on weakened assertions.
 4. Orchestrator reads the diffstat itself.
-
-## Deliberate deviations from Pocock
-
-1. **He has no floor for small changes** - "use them every time you want to make a change."
-We default to the smallest thing that works.
-2. **He refuses to build an orchestration layer** - "how you run it is up to you."
-No prior art to copy; this is the gap being filled.
-3. **His router `ask-matt` is human-fired.**
-Every orchestration skill of his is `disable-model-invocation: true`, so only the human starts a phase.
-Ours routes autonomously.
-That is the trade: speed, against the risk of being coherent about the wrong thing.
-
-His warning, worth re-reading whenever this grows:
-
-> Approaches like GSD, BMAD, and Spec-Kit try to help by owning the process.
-> But while doing so, they take away your control and make bugs in the process hard to resolve.
 
 ## Roster
 

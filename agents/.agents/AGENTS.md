@@ -18,11 +18,6 @@ Project specific configuration takes precedence over anything here.
 - Markdown files should include frontmatter metadata to give better context about their purpose and usage. Include at least `name` and `description`.
 - When reading markdown files, start by only reading the frontmatter, then if it is useful, read the entire file. Use bash command line tools like `ripgrep`, `cat`, `find`, and the like to find relevant files and information.
 
-# AI Coding
-
-- Before implementing make sure you have a clear idea of how to review your work. For standard backend, cli, or library work tests should be sufficient, but for work that includes some visual elements like TUIs, websites, plots, make sure to use relevant tools to inspect your work like `playwright` for websites, and other tools for other scenarios. When testing visual elements, take screenshots, and store them in `.ai/refs/` prepended with `review_`. Once reviewed, replace `review_` with `rejected_` or `approved_` based on whether the review is approved or not.
-- Skills are the portable unit of capability. They follow the Agent Skills spec and live in `~/.agents/skills/`, where every harness except Claude Code reads them natively. Add and update them with `npx skills`.
-
 # Environments
 
 - Project environments should be handled using [`mise`](https://mise.jdx.dev/)

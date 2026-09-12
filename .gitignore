@@ -68,6 +68,8 @@ nvim/.config/nvim/lazy-lock.json
 .direnv/
 .mise.local.toml
 mise.local.toml
+# Agent review screenshots (approved_/rejected_ refs).
+.ai/
 
 # --- caches and build output ------------------------------------------------
 __pycache__/

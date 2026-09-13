@@ -32,8 +32,7 @@ repos:
         # shellcheck, and an exec bit on them would be a lie.
         exclude: |
           (?x)^(
-            scripts/\.local/bin/git-wt-common\.sh
-            |zsh/zsh\.d/.*
+            zsh/zsh\.d/.*
             |\.evals/cases/.*
           )$
 
@@ -115,7 +114,16 @@ repos:
         entry: scripts/tests/test-git-wt-bootstrap
         language: system
         pass_filenames: false
-        files: ^scripts/(\.local/bin/(git-wt-.*|claude-worktree-create)|tests/test-git-wt-bootstrap)$
+        files: ^scripts/(\.local/bin/(git-wt.*|claude-worktree-create)|tests/test-git-wt-bootstrap)$
+
+      # Every git-wt command end to end on throwaway repos, including each bug
+      # the audit of the old bash scripts reproduced.
+      - id: git-wt-tests
+        name: git-wt tests
+        entry: scripts/tests/test-git-wt
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/(git-wt.*|claude-worktree-create)|tests/test-git-wt)$
 
       - id: git-projects-tests
         name: git-projects tests

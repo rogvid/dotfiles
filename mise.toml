@@ -51,4 +51,5 @@ run = [
   "scripts/tests/test-agent-sidebar",
   "scripts/tests/test-agent-sidebar-tmux",
   "scripts/tests/test-git-wt-bootstrap",
+  "scripts/tests/test-git-projects",
 ]

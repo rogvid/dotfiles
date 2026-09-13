@@ -116,3 +116,10 @@ repos:
         language: system
         pass_filenames: false
         files: ^scripts/(\.local/bin/(git-wt-.*|claude-worktree-create)|tests/test-git-wt-bootstrap)$
+
+      - id: git-projects-tests
+        name: git-projects tests
+        entry: scripts/tests/test-git-projects
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/git-projects|tests/test-git-projects)$

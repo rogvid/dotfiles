@@ -60,5 +60,8 @@ jobs:
           install: true
           cache: true
           cache_save: false
-      - name: agent-scan classifier
+      # The sidebar's end-to-end test drives a real tmux server.
+      - name: Install tmux
+        run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: agent tools
         run: mise run test

@@ -91,3 +91,19 @@ repos:
         language: system
         pass_filenames: false
         files: ^scripts/(\.local/bin/agent-scan|tests/test-agent-scan)$
+
+      - id: agent-sidebar-tests
+        name: agent-sidebar app tests
+        entry: scripts/tests/test-agent-sidebar
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/agent-sidebar|tests/test-agent-sidebar)$
+
+      # Runs a throwaway tmux server, with the binding and hooks read out of
+      # tmux.conf, so a config edit re-runs it too.
+      - id: agent-sidebar-tmux-tests
+        name: agent-sidebar tmux tests
+        entry: scripts/tests/test-agent-sidebar-tmux
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(\.local/bin/agent-sidebar-tmux|tests/test-agent-sidebar-tmux)|tmux/\.tmux\.conf)$

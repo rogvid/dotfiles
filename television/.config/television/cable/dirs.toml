@@ -22,12 +22,14 @@ shortcut = "f2"
 
 [actions.attach]
 description = "Switch to or open directory in tmux session"
-command = "d=$(realpath '{}'); s=$(basename \"$d\" | tr . _); tmux has-session -t \"=$s\" 2>/dev/null || tmux new-session -ds \"$s\" -c \"$d\"; tmux switch-client -t \"=$s\" 2>/dev/null || tmux attach-session -t \"=$s\""
+# Actions get the entry shell-quoted already; quoting it again splits a path
+# at a space.
+command = "d=$(realpath {}); s=$(basename \"$d\" | tr . _); tmux has-session -t \"=$s\" 2>/dev/null || tmux new-session -ds \"$s\" -c \"$d\"; tmux switch-client -t \"=$s\" 2>/dev/null || tmux attach-session -t \"=$s\""
 mode = "execute"
 
 [actions.cd]
 description = "Open a shell in the selected directory"
-command = "cd '{}' && $SHELL"
+command = "cd {} && $SHELL"
 mode = "execute"
 
 [actions.goto_parent_dir]

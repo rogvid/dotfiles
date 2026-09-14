@@ -1,10 +1,10 @@
 # Agent Guidelines for Dotfiles Repository
 
 ## Build/Test/Deploy Commands
-- **Deploy**: `mise bootstrap` (tools, packages, repos and every `[dotfiles]` symlink)
-- **Check for drift**: `mise bootstrap dotfiles status --missing` (non-zero if the machine diverged)
-- **Setup**: `curl https://mise.run | sh`, then `mise bootstrap --yes`
-- **Test**: No automated tests - manual verification by sourcing config files
+- **Deploy**: `mise bootstrap` (tools, packages, services and every `[dotfiles]` symlink)
+- **Check for drift**: `mise run drift` (non-zero if the machine diverged; also runs on entering the repo)
+- **Setup**: `ztp.sh` (see README.md; `[dotfiles]` sources go through the `~/.dotfiles` link it creates)
+- **Test**: `mise run test`
 - **Lint**: `stylua` for Lua files (nvim config), `shellcheck` for shell scripts
 
 ## Code Style & Conventions

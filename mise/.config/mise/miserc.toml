@@ -1,6 +1,0 @@
-# Loaded before any config, so it can choose which ones load. WSL sets
-# WSL_DISTRO_NAME for everything it starts; anywhere else this selects the
-# `desktop` profile, i.e. config.desktop.toml.
-{% if get_env(name="WSL_DISTRO_NAME", default="") == "" %}
-env = ["desktop"]
-{% endif %}

@@ -1,7 +1,7 @@
-# Physical Linux desktop only. miserc.toml selects this `desktop` profile on
-# every machine except WSL, where there is no keyboard to remap, no GUI apps
+# Physical Linux desktop only, loaded by the `desktop` profile. ztp.sh offers
+# `headless` instead on WSL, where there is no keyboard to remap, no GUI apps
 # are wanted (WSLg would push their launchers into the Windows Start menu) and
-# systemd may not be running.
+# systemd may not be running. The choice lives in ~/.config/mise/miserc.toml.
 #
 # Entries here merge with config.toml. `mise use -g` still writes to config.toml,
 # so move a desktop-only tool here by hand.
@@ -17,17 +17,17 @@
 "github:obsidianmd/obsidian-releases" = { version = "1.13.7", matching = ".tar.gz", filter_bins = ["obsidian", "obsidian-cli"] }
 
 [dotfiles]
-"~/.config/kanata"                      = { source = "~/asgard/personal/dotfiles/kanata/.config/kanata" }
-"~/.config/systemd/user/kanata.service" = { source = "~/asgard/personal/dotfiles/kanata/.config/systemd/user/kanata.service", os = "linux" }
+"~/.config/kanata"                      = { source = "~/.dotfiles/kanata/.config/kanata" }
+"~/.config/systemd/user/kanata.service" = { source = "~/.dotfiles/kanata/.config/systemd/user/kanata.service", os = "linux" }
 # Regolith is not in use (GNOME is); kept in the repo in case it comes back.
-# "~/.config/regolith3" = { source = "~/asgard/personal/dotfiles/regolith/.config/regolith3", os = "linux" }
-"~/.config/systemd/user/restic-backup.service" = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.service", os = "linux" }
-"~/.config/systemd/user/restic-backup.timer"   = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.timer", os = "linux" }
-"~/.local/share/applications/icons" = { source = "~/asgard/personal/dotfiles/icons/.local/share/applications/icons" }
+# "~/.config/regolith3" = { source = "~/.dotfiles/regolith/.config/regolith3", os = "linux" }
+"~/.config/systemd/user/restic-backup.service" = { source = "~/.dotfiles/systemd/.config/systemd/user/restic-backup.service", os = "linux" }
+"~/.config/systemd/user/restic-backup.timer"   = { source = "~/.dotfiles/systemd/.config/systemd/user/restic-backup.timer", os = "linux" }
+"~/.local/share/applications/icons" = { source = "~/.dotfiles/icons/.local/share/applications/icons" }
 # Launchers for the desktop apps above. Templates, because a .desktop Exec line
 # takes no ~ or $HOME. They point at the shims, so a version bump needs no edit.
-"~/.local/share/applications/Obsidian.desktop"  = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/Obsidian.desktop.tera", mode = "template", os = "linux" }
-"~/.local/share/applications/LocalSend.desktop" = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/LocalSend.desktop.tera", mode = "template", os = "linux" }
+"~/.local/share/applications/Obsidian.desktop"  = { source = "~/.dotfiles/desktop/.local/share/applications/Obsidian.desktop.tera", mode = "template", os = "linux" }
+"~/.local/share/applications/LocalSend.desktop" = { source = "~/.dotfiles/desktop/.local/share/applications/LocalSend.desktop.tera", mode = "template", os = "linux" }
 
 [bootstrap.packages]
 "apt:at" = { os = "linux" }

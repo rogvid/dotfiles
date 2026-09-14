@@ -1,43 +1,42 @@
 # My Dotfiles
 
 This repository contains the configurations for tools that I use on a daily basis.
-Everything is declared in `mise/.config/mise/config.toml` and applied by `mise bootstrap` - there is no init script, no GNU stow, and no ansible.
+Everything is declared in `mise/.config/mise/` and applied by `mise bootstrap`; `ztp.sh` sets up a new machine with one command.
 
 ## Setting up a new machine
 
-Only `git`, `curl` and `sudo` need to be present.
-
 ```bash
-curl https://mise.run | sh
-export PATH="$HOME/.local/bin:$PATH"
-mise x gh -- gh auth login
-git clone https://github.com/rogvid/dotfiles.git ~/asgard/personal/dotfiles
-MISE_CONFIG_DIR=~/asgard/personal/dotfiles/mise/.config/mise mise bootstrap --yes
+curl -fsSL https://raw.githubusercontent.com/rogvid/dotfiles/main/ztp.sh | bash
 ```
 
-The config lives inside this repo, so the repo has to be cloned before mise can read it.
-`MISE_CONFIG_DIR` is only needed for that first run: it links `~/.config/mise/` back into the repo, and from then on a plain `mise bootstrap` works.
-The same commands set up WSL - see [Desktop and WSL](#desktop-and-wsl).
-The anonymous https clone matches the `git@` URL in `[bootstrap.repos]`; switch the remote with `git remote set-url origin git@github.com:rogvid/dotfiles.git` once an SSH key is set up for pushing.
+`ztp.sh` asks two things, then does the rest:
 
-`gh auth login` matters even though the repo is public: mise reuses the `gh` token, and without it the GitHub-hosted tools in `[tools]` exhaust the anonymous API rate limit.
-Do not use `mise use -g gh` for this step - it writes a real `~/.config/mise/config.toml`, which then blocks the symlink.
+1. **Where to clone the repo** - anywhere; the default is `~/.dotfiles`.
+2. **Which profile** - `desktop`, or `headless` for WSL, servers and containers. It defaults to `headless` when it detects WSL.
 
-`mise bootstrap` installs the OS packages in `[bootstrap.packages]` and starts `[bootstrap.services]` (both prompt for `sudo`), symlinks every path in `[dotfiles]`, and installs every tool in `[tools]`.
-Add `--dry-run` first to see what it would do.
+It installs git (via apt, if missing) and mise, offers a GitHub login, clones the repo, and runs `mise bootstrap`, which asks for `sudo` for OS packages and services.
+Only `curl` needs to be present.
 
-## Desktop and WSL
+To skip the prompts, answer them up front:
 
-`mise/.config/mise/` holds three files:
+```bash
+curl -fsSL https://raw.githubusercontent.com/rogvid/dotfiles/main/ztp.sh | bash -s -- --dir ~/src/dotfiles --profile headless --yes
+```
 
-| File | Loaded | Holds |
-| --- | --- | --- |
-| `config.toml` | Everywhere | Shell, editor, git, CLI tools, scripts - everything a terminal needs |
-| `config.desktop.toml` | Everywhere except WSL | kanata, Obsidian and LocalSend with their launchers, restic units, `at` and `atd` |
-| `miserc.toml` | First, before either | Selects the `desktop` profile unless `WSL_DISTRO_NAME` is set, which WSL does for everything it starts |
+`ztp.sh --help` lists every option; anything after `--` goes to `mise bootstrap` (for example `-- --skip packages,services`).
+The script is safe to re-run, and re-running it is how to move the repo or switch a machine's profile.
 
-So the WSL machine skips what needs a physical keyboard, a Linux desktop or a running systemd, with no flag to remember.
-`mise config ls` shows which files a machine loaded.
+The GitHub login matters even though the repo is public: mise reuses the `gh` token, and without it the GitHub-hosted tools exhaust the anonymous API rate limit.
+Clones use https; switch with `git remote set-url origin git@github.com:rogvid/dotfiles.git` once an SSH key is set up for pushing.
+
+## How it fits together
+
+- **`~/.dotfiles`** is a symlink to wherever the repo was cloned (or the clone itself). Every `[dotfiles]` source goes through it, so moving the repo means re-running `ztp.sh --dir <new path>`.
+- **`mise/.config/mise/config.toml`** is loaded on every machine: shell, editor, git, CLI tools, scripts - everything a terminal needs.
+- **`mise/.config/mise/config.desktop.toml`** is loaded by the `desktop` profile only: kanata, Obsidian and LocalSend with their launchers, the restic units, and `at` with `atd`. WSL gets none of it - no keyboard to remap, no Linux GUI apps, and possibly no systemd.
+- **`~/.config/mise/miserc.toml`** is not in the repo. `ztp.sh` writes it to record the machine's profile.
+
+`mise config ls` shows which config files a machine loads.
 
 ## Day to day
 
@@ -50,10 +49,7 @@ Every managed path is a symlink into this repo, so editing a config anywhere is 
 | Manage a new config file | Move it into a package directory here, add a `[dotfiles]` entry, then `mise bootstrap dotfiles apply` |
 | Add an OS package or service | Add it to `[bootstrap.packages]` or `[bootstrap.services]`, then `mise bootstrap --only packages,services` |
 | Upgrade tools | `mise upgrade` - Obsidian is pinned (see the comment in `config.desktop.toml`), so bump its version by hand |
-| Bring a machine up to date | `mise bootstrap` - it fast-forwards this checkout to `main` first, then applies |
-
-`mise bootstrap` refuses to run while this checkout has uncommitted changes, because `[bootstrap.repos]` will not touch a dirty repo.
-Commit first, or add `--skip repos` while you are mid-edit.
+| Bring a machine up to date | `git -C ~/.dotfiles pull`, then `mise bootstrap` |
 
 A desktop app also needs a launcher: copy one of the templates in `desktop/` and add a `mode = "template"` entry to `[dotfiles]` in `config.desktop.toml`.
 

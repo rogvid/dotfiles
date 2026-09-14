@@ -12,7 +12,7 @@
 # yourself once you are happy with what this reports.
 set -euo pipefail
 
-DOTFILES="${DOTFILES:-$HOME/asgard/personal/dotfiles}"
+DOTFILES="${DOTFILES:-$HOME/.dotfiles}"
 SKILL_LIST="${DOTFILES}/agents/.agents/skills.list"
 PEON_DIR="${HOME}/.claude/hooks/peon-ping"
 CHECK=0

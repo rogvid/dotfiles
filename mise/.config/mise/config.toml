@@ -19,7 +19,6 @@ terragrunt = "latest"
 go = "latest"
 ruff = "latest"
 atuin = "latest"
-"cargo:kanata" = "latest"
 eza = "latest"
 "github:astral-sh/uv" = "latest"
 "github:astral-sh/ruff" = "latest"
@@ -70,17 +69,8 @@ rust = "latest"          # was install-rust.sh (curl | sh from rustup.rs)
 yt-dlp = "latest"        # was install-yt-dlp.sh
 opencode = "latest"      # was install-opencode.sh
 container-use = "latest" # was install-container-use.sh
-restic = "latest"        # restic-backup.timer below runs it
-
-# --- desktop apps, retiring the last of applications/ ------------------------
+restic = "latest"
 "github:danielmiessler/fabric" = "latest"
-"github:localsend/localsend" = { version = "latest", rename_exe = "localsend" }
-# Pinned, not "latest": Obsidian publishes mobile-only releases (1.13.8 is just
-# an .apk) and mise lists those, so "latest" can resolve to a version with no
-# Linux build. Bump by hand from github.com/obsidianmd/obsidian-releases.
-# The tarball needs no FUSE, unlike the AppImage. filter_bins keeps Electron's
-# chrome-sandbox and bundled .so files out of the shims.
-"github:obsidianmd/obsidian-releases" = { version = "1.13.7", matching = ".tar.gz", filter_bins = ["obsidian", "obsidian-cli"] }
 
 # ---------------------------------------------------------------------------
 # Machine setup. `mise bootstrap` applies everything below; `mise bootstrap
@@ -89,6 +79,10 @@ restic = "latest"        # restic-backup.timer below runs it
 # packages had silently never been linked here and nothing said so.
 #
 # Sources are `~/`-relative, not absolute, so the same config works on a mac.
+#
+# This file is what every machine gets, WSL included. Anything that only makes
+# sense on a physical Linux desktop lives in config.desktop.toml, which
+# miserc.toml loads everywhere except under WSL.
 # ---------------------------------------------------------------------------
 
 [dotfiles]
@@ -105,7 +99,9 @@ restic = "latest"        # restic-backup.timer below runs it
 "~/.config/starship.toml" = { source = "~/asgard/personal/dotfiles/starship/.config/starship.toml" }
 
 # -- mise itself. The config that declares these links is one of them. -------
-"~/.config/mise/config.toml" = { source = "~/asgard/personal/dotfiles/mise/.config/mise/config.toml" }
+"~/.config/mise/config.toml"         = { source = "~/asgard/personal/dotfiles/mise/.config/mise/config.toml" }
+"~/.config/mise/config.desktop.toml" = { source = "~/asgard/personal/dotfiles/mise/.config/mise/config.desktop.toml" }
+"~/.config/mise/miserc.toml"         = { source = "~/asgard/personal/dotfiles/mise/.config/mise/miserc.toml" }
 
 # -- git. File-level: ~/.config/git and ~ hold unmanaged neighbours. ---------
 "~/.gitconfig"           = { source = "~/asgard/personal/dotfiles/git/.gitconfig" }
@@ -118,18 +114,11 @@ restic = "latest"        # restic-backup.timer below runs it
 "~/.config/direnv"     = { source = "~/asgard/personal/dotfiles/direnv/.config/direnv" }
 "~/.config/sesh"       = { source = "~/asgard/personal/dotfiles/sesh/.config/sesh" }
 "~/.config/television" = { source = "~/asgard/personal/dotfiles/television/.config/television" }
-"~/.config/kanata"     = { source = "~/asgard/personal/dotfiles/kanata/.config/kanata" }
 # Renamed from config.yaml: lazygit reads config.yml only, so the repo's
 # settings had never once been loaded, stowed or not.
 "~/.config/lazygit"    = { source = "~/asgard/personal/dotfiles/lazygit/.config/lazygit" }
 # LazyVim starter. lazy-lock.json is written here but ignored by git.
 "~/.config/nvim"       = { source = "~/asgard/personal/dotfiles/nvim/.config/nvim" }
-
-# -- Linux-only ------------------------------------------------------------
-"~/.config/regolith3" = { source = "~/asgard/personal/dotfiles/regolith/.config/regolith3", os = "linux" }
-"~/.config/systemd/user/kanata.service"        = { source = "~/asgard/personal/dotfiles/kanata/.config/systemd/user/kanata.service", os = "linux" }
-"~/.config/systemd/user/restic-backup.service" = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.service", os = "linux" }
-"~/.config/systemd/user/restic-backup.timer"   = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.timer", os = "linux" }
 
 # -- agent configs. ~/.claude is written by Claude Code itself, so the two
 #    files this repo owns are linked individually rather than the directory. -
@@ -157,32 +146,20 @@ restic = "latest"        # restic-backup.timer below runs it
 
 # -- odds and ends ----------------------------------------------------------
 "~/prompts" = { source = "~/asgard/personal/dotfiles/vscode/prompts" }
-"~/.local/share/applications/icons" = { source = "~/asgard/personal/dotfiles/icons/.local/share/applications/icons" }
-# Launchers for the desktop apps in [tools]. Templates, because a .desktop
-# Exec line takes no ~ or $HOME. They point at the shims, so a version bump
-# needs no edit here.
-"~/.local/share/applications/Obsidian.desktop"  = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/Obsidian.desktop.tera", mode = "template", os = "linux" }
-"~/.local/share/applications/LocalSend.desktop" = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/LocalSend.desktop.tera", mode = "template", os = "linux" }
 
 # ---------------------------------------------------------------------------
-# OS packages and the system services they bring, replacing
-# applications/install-at.sh and the apt half of install-nvim.sh.
+# OS packages. `at` and its service are in config.desktop.toml.
 # ---------------------------------------------------------------------------
 [bootstrap.packages]
-"apt:at" = { os = "linux" }
 "apt:luarocks" = { os = "linux" } # LazyVim :checkhealth
-
-# Installing `at` is not enough: `at` queues jobs that only atd runs.
-[bootstrap.services.atd]
-state = "running"
-enabled = true
 
 # ---------------------------------------------------------------------------
 # The repository this config comes from. It cannot clone itself onto a new
 # machine - this file is inside it - so README.md clones first and points
-# MISE_GLOBAL_CONFIG_FILE here for the first run. After that the [dotfiles]
-# entry above links ~/.config/mise/config.toml and a plain `mise bootstrap`
-# keeps the checkout converged. mise treats git@ and https:// URLs for the same
+# MISE_CONFIG_DIR at this directory for the first run, which also picks up
+# miserc.toml and config.desktop.toml. After that the [dotfiles] entries above
+# link all three into ~/.config/mise and a plain `mise bootstrap` keeps the
+# checkout converged. mise treats git@ and https:// URLs for the same
 # repo as equal, so the anonymous https clone the README uses matches this.
 # ---------------------------------------------------------------------------
 [bootstrap.repos]

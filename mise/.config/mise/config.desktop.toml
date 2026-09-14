@@ -1,0 +1,40 @@
+# Physical Linux desktop only. miserc.toml selects this `desktop` profile on
+# every machine except WSL, where there is no keyboard to remap, no GUI apps
+# are wanted (WSLg would push their launchers into the Windows Start menu) and
+# systemd may not be running.
+#
+# Entries here merge with config.toml. `mise use -g` still writes to config.toml,
+# so move a desktop-only tool here by hand.
+
+[tools]
+"cargo:kanata" = "latest"
+"github:localsend/localsend" = { version = "latest", rename_exe = "localsend" }
+# Pinned, not "latest": Obsidian publishes mobile-only releases (1.13.8 is just
+# an .apk) and mise lists those, so "latest" can resolve to a version with no
+# Linux build. Bump by hand from github.com/obsidianmd/obsidian-releases.
+# The tarball needs no FUSE, unlike the AppImage. filter_bins keeps Electron's
+# chrome-sandbox and bundled .so files out of the shims.
+"github:obsidianmd/obsidian-releases" = { version = "1.13.7", matching = ".tar.gz", filter_bins = ["obsidian", "obsidian-cli"] }
+
+[dotfiles]
+"~/.config/kanata"                      = { source = "~/asgard/personal/dotfiles/kanata/.config/kanata" }
+"~/.config/systemd/user/kanata.service" = { source = "~/asgard/personal/dotfiles/kanata/.config/systemd/user/kanata.service", os = "linux" }
+# Regolith is not in use (GNOME is); kept in the repo in case it comes back.
+# "~/.config/regolith3" = { source = "~/asgard/personal/dotfiles/regolith/.config/regolith3", os = "linux" }
+"~/.config/systemd/user/restic-backup.service" = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.service", os = "linux" }
+"~/.config/systemd/user/restic-backup.timer"   = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.timer", os = "linux" }
+"~/.local/share/applications/icons" = { source = "~/asgard/personal/dotfiles/icons/.local/share/applications/icons" }
+# Launchers for the desktop apps above. Templates, because a .desktop Exec line
+# takes no ~ or $HOME. They point at the shims, so a version bump needs no edit.
+"~/.local/share/applications/Obsidian.desktop"  = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/Obsidian.desktop.tera", mode = "template", os = "linux" }
+"~/.local/share/applications/LocalSend.desktop" = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/LocalSend.desktop.tera", mode = "template", os = "linux" }
+
+[bootstrap.packages]
+"apt:at" = { os = "linux" }
+
+# Installing `at` is not enough: `at` queues jobs that only atd runs. Kept off
+# WSL because the service step fails closed, stopping the whole bootstrap, when
+# systemd is not running.
+[bootstrap.services.atd]
+state = "running"
+enabled = true

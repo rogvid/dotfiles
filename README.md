@@ -12,11 +12,12 @@ curl https://mise.run | sh
 export PATH="$HOME/.local/bin:$PATH"
 mise x gh -- gh auth login
 git clone https://github.com/rogvid/dotfiles.git ~/asgard/personal/dotfiles
-MISE_GLOBAL_CONFIG_FILE=~/asgard/personal/dotfiles/mise/.config/mise/config.toml mise bootstrap --yes
+MISE_CONFIG_DIR=~/asgard/personal/dotfiles/mise/.config/mise mise bootstrap --yes
 ```
 
 The config lives inside this repo, so the repo has to be cloned before mise can read it.
-`MISE_GLOBAL_CONFIG_FILE` is only needed for that first run: it links `~/.config/mise/config.toml` back into the repo, and from then on a plain `mise bootstrap` works.
+`MISE_CONFIG_DIR` is only needed for that first run: it links `~/.config/mise/` back into the repo, and from then on a plain `mise bootstrap` works.
+The same commands set up WSL - see [Desktop and WSL](#desktop-and-wsl).
 The anonymous https clone matches the `git@` URL in `[bootstrap.repos]`; switch the remote with `git remote set-url origin git@github.com:rogvid/dotfiles.git` once an SSH key is set up for pushing.
 
 `gh auth login` matters even though the repo is public: mise reuses the `gh` token, and without it the GitHub-hosted tools in `[tools]` exhaust the anonymous API rate limit.
@@ -25,23 +26,36 @@ Do not use `mise use -g gh` for this step - it writes a real `~/.config/mise/con
 `mise bootstrap` installs the OS packages in `[bootstrap.packages]` and starts `[bootstrap.services]` (both prompt for `sudo`), symlinks every path in `[dotfiles]`, and installs every tool in `[tools]`.
 Add `--dry-run` first to see what it would do.
 
+## Desktop and WSL
+
+`mise/.config/mise/` holds three files:
+
+| File | Loaded | Holds |
+| --- | --- | --- |
+| `config.toml` | Everywhere | Shell, editor, git, CLI tools, scripts - everything a terminal needs |
+| `config.desktop.toml` | Everywhere except WSL | kanata, Obsidian and LocalSend with their launchers, restic units, `at` and `atd` |
+| `miserc.toml` | First, before either | Selects the `desktop` profile unless `WSL_DISTRO_NAME` is set, which WSL does for everything it starts |
+
+So the WSL machine skips what needs a physical keyboard, a Linux desktop or a running systemd, with no flag to remember.
+`mise config ls` shows which files a machine loaded.
+
 ## Day to day
 
 Every managed path is a symlink into this repo, so editing a config anywhere is editing the repo: the change shows up in `git status` here, ready to commit.
 
 | To | Do |
 | --- | --- |
-| Add a tool | `mise use -g <tool>` - it writes through the symlink into `mise/.config/mise/config.toml` |
+| Add a tool | `mise use -g <tool>` - it writes through the symlink into `config.toml`; move the line to `config.desktop.toml` if WSL should not get it |
 | Add a script | Put it in `scripts/.local/bin`, `git add` it, then `mise bootstrap dotfiles apply` |
 | Manage a new config file | Move it into a package directory here, add a `[dotfiles]` entry, then `mise bootstrap dotfiles apply` |
 | Add an OS package or service | Add it to `[bootstrap.packages]` or `[bootstrap.services]`, then `mise bootstrap --only packages,services` |
-| Upgrade tools | `mise upgrade` - Obsidian is pinned (see the comment in `[tools]`), so bump its version by hand |
+| Upgrade tools | `mise upgrade` - Obsidian is pinned (see the comment in `config.desktop.toml`), so bump its version by hand |
 | Bring a machine up to date | `mise bootstrap` - it fast-forwards this checkout to `main` first, then applies |
 
 `mise bootstrap` refuses to run while this checkout has uncommitted changes, because `[bootstrap.repos]` will not touch a dirty repo.
 Commit first, or add `--skip repos` while you are mid-edit.
 
-A desktop app also needs a launcher: copy one of the templates in `desktop/` and add a `mode = "template"` entry to `[dotfiles]`.
+A desktop app also needs a launcher: copy one of the templates in `desktop/` and add a `mode = "template"` entry to `[dotfiles]` in `config.desktop.toml`.
 
 ## Drift
 

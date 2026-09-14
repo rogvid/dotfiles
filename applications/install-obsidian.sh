@@ -30,7 +30,7 @@ if [ -f $HOME/applications/obsidian ]; then
 fi
 
 if [ ! -f $HOME/.local/share/applications/icons/Obsidian.png ]; then
-  echo "Icons have not been stowed! Stow icons before installing applications."
+  echo "Icons are not linked. Run 'mise bootstrap dotfiles apply' first."
   exit 0
 fi
 

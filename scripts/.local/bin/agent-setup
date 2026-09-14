@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Install the parts of the agent setup that dotfiles cannot carry.
 #
-# Stow handles anything that is a file you own. This handles the rest: third-party
+# `mise bootstrap` links anything that is a file you own. This handles the rest: third-party
 # programs with their own installers, and skills fetched from upstream repos. Vendoring
 # either would mean fighting their updaters forever, so they are declared, not copied.
 #
 #   agent-setup            install what is missing
 #   agent-setup --check    report what would change, touch nothing
 #
-# Safe to re-run. Does not stow - run `stow --restow --target="$HOME" agents claude`
+# Safe to re-run. Does not link anything - run `mise bootstrap dotfiles apply`
 # yourself once you are happy with what this reports.
 set -euo pipefail
 
-DOTFILES="${DOTFILES:-$HOME/personal/projects/dotfiles}"
+DOTFILES="${DOTFILES:-$HOME/asgard/personal/dotfiles}"
 SKILL_LIST="${DOTFILES}/agents/.agents/skills.list"
 PEON_DIR="${HOME}/.claude/hooks/peon-ping"
 CHECK=0
@@ -37,7 +37,7 @@ install_peon_ping() {
   # Its installer owns this directory and registers its own hooks in settings.json.
   # We keep only config.json under version control; packs and state stay local.
   curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
-  say "installed - re-stow the claude package to restore your config.json"
+  say "installed - run 'mise bootstrap dotfiles apply' to relink anything its installer replaced"
 }
 
 install_skills() {
@@ -81,7 +81,7 @@ main() {
   install_skills
   report_undeclared
   head_ "next"
-  say "stow --restow --target=\"\$HOME\" agents claude"
+  say "mise bootstrap dotfiles apply"
 }
 
 main "$@"

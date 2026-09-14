@@ -1,21 +1,44 @@
 # My Dotfiles
 
-This repository contains the configurations for tools that I use on a daily basis. I use this dotfiles repository in combination with my ansible zero-touch provisioning.
+This repository contains the configurations for tools that I use on a daily basis.
+Everything is declared in `mise/.config/mise/config.toml` and applied by `mise bootstrap` - there is no init script, no GNU stow, and no ansible.
 
-## Requirements
+## Setting up a new machine
 
-Before setting up a new dev environment make sure the following is present:
-
-- `git`
-- `curl`
-
-# Instructions for quickly setting up configurations on a new machine
-
-The recommended setup is to run the init script from git:
+Only `git`, `curl` and `sudo` need to be present.
 
 ```bash
-curl -Lks github.com/rogvid/dotfiles/setup.sh | /bin/bash
+curl https://mise.run | sh
+export PATH="$HOME/.local/bin:$PATH"
+mise x gh -- gh auth login
+git clone https://github.com/rogvid/dotfiles.git ~/asgard/personal/dotfiles
+MISE_GLOBAL_CONFIG_FILE=~/asgard/personal/dotfiles/mise/.config/mise/config.toml mise bootstrap --yes
 ```
+
+The config lives inside this repo, so the repo has to be cloned before mise can read it.
+`MISE_GLOBAL_CONFIG_FILE` is only needed for that first run: it links `~/.config/mise/config.toml` back into the repo, and from then on a plain `mise bootstrap` works.
+The anonymous https clone matches the `git@` URL in `[bootstrap.repos]`; switch the remote with `git remote set-url origin git@github.com:rogvid/dotfiles.git` once an SSH key is set up for pushing.
+
+`gh auth login` matters even though the repo is public: mise reuses the `gh` token, and without it the GitHub-hosted tools in `[tools]` exhaust the anonymous API rate limit.
+Do not use `mise use -g gh` for this step - it writes a real `~/.config/mise/config.toml`, which then blocks the symlink.
+
+`mise bootstrap` installs the OS packages in `[bootstrap.packages]` and starts `[bootstrap.services]` (both prompt for `sudo`), symlinks every path in `[dotfiles]`, and installs every tool in `[tools]`.
+Add `--dry-run` first to see what it would do.
+
+## Checking a machine has not drifted
+
+```bash
+mise bootstrap dotfiles status            # one line per managed path
+mise bootstrap dotfiles status --missing  # exits non-zero if anything drifted
+```
+
+This is the part stow never had.
+When this repo was migrated, that report found ten packages that had silently never been linked on the main machine, a `lazygit` config under a filename lazygit does not read, and two directories whose contents would have been destroyed by a naive symlink.
+
+## Applications not managed by mise
+
+`applications/` keeps three installers for things mise's registry does not carry: `install-fabric.sh`, `install-localsend.sh` and `install-obsidian.sh` (the last two are AppImages).
+Everything else that used to live there is now a `[tools]` entry.
 
 ## Working on this repo
 

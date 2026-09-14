@@ -2,7 +2,7 @@
 
 ## Ubuntu
 
-After running the stow command or `setup.sh` script, you'll need to reload the service daemon like this:
+After `mise bootstrap`, you will need to reload the service daemon like this:
 
 ```bash
 systemctl --user daemon-reload

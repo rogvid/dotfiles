@@ -40,10 +40,17 @@ bitwarden = "latest"
 starship = "latest"
 zoxide = "latest"
 jq = "latest"
-age-plugin-yubikey = "latest"
+# Upstream publishes darwin and windows assets only - there has never been a
+# Linux build. Without this gate every `mise install`, `mise run <task>` and
+# `mise x` on a Linux box fails on it, and the error names the yubikey plugin
+# rather than whatever it was actually blocking.
+age-plugin-yubikey = { version = "latest", os = ["macos", "windows"] }
 just = "latest"
 "github:alexpasmantier/television" = "latest"
-fnox = "latest"
+# Explicit backend: newer mise resolves bare `fnox` through packslip, which
+# lists only the newest couple of releases, so minimum_release_age filters out
+# every one of them and a fresh `mise bootstrap` fails on it.
+"github:jdx/fnox" = "latest"
 "github:joshmedeski/sesh" = "latest"
 "github:charmbracelet/mods" = "latest"
 "github:lightonai/next-plaid" = "latest"
@@ -54,3 +61,114 @@ gh = "latest"
 direnv = "2.37.1"
 gitleaks = "8.30.1"
 ffmpeg = "latest"
+# --- these five retire applications/install-*.sh -------------------------
+# Each was a hand-rolled download-and-place script; mise's registry carries
+# all of them, so they are now versioned, upgradable and the same on any box.
+neovim = "latest"        # was install-nvim.sh (wget + sudo install to /usr/local)
+tree-sitter = "latest"   # install-nvim.sh also apt-installed this for LazyVim's :checkhealth
+rust = "latest"          # was install-rust.sh (curl | sh from rustup.rs)
+yt-dlp = "latest"        # was install-yt-dlp.sh
+opencode = "latest"      # was install-opencode.sh
+container-use = "latest" # was install-container-use.sh
+restic = "latest"        # restic-backup.timer below runs it
+
+# ---------------------------------------------------------------------------
+# Machine setup. `mise bootstrap` applies everything below; `mise bootstrap
+# dotfiles status --missing` exits non-zero when this machine has drifted from
+# it. That report is the reason this section exists - under GNU stow, 10 of 20
+# packages had silently never been linked here and nothing said so.
+#
+# Sources are `~/`-relative, not absolute, so the same config works on a mac.
+# ---------------------------------------------------------------------------
+
+[dotfiles]
+# -- shell, terminal, prompt -------------------------------------------------
+"~/.zshrc"                = { source = "~/asgard/personal/dotfiles/zsh/.zshrc" }
+"~/zsh.d"                 = { source = "~/asgard/personal/dotfiles/zsh/zsh.d" }
+"~/.tmux.conf"            = { source = "~/asgard/personal/dotfiles/tmux/.tmux.conf" }
+# File-level, not the directory: ~/.tmux also holds plugins/, installed by
+# TPM and not tracked here. A directory symlink would delete it.
+"~/.tmux/.tmux-cht-command"   = { source = "~/asgard/personal/dotfiles/tmux/.tmux/.tmux-cht-command" }
+"~/.tmux/.tmux-cht-languages" = { source = "~/asgard/personal/dotfiles/tmux/.tmux/.tmux-cht-languages" }
+"~/.config/tmux"          = { source = "~/asgard/personal/dotfiles/tmux/.config/tmux" }
+"~/.wezterm.lua"          = { source = "~/asgard/personal/dotfiles/wezterm/.wezterm.lua" }
+"~/.config/starship.toml" = { source = "~/asgard/personal/dotfiles/starship/.config/starship.toml" }
+
+# -- mise itself. The config that declares these links is one of them. -------
+"~/.config/mise/config.toml" = { source = "~/asgard/personal/dotfiles/mise/.config/mise/config.toml" }
+
+# -- git. File-level: ~/.config/git and ~ hold unmanaged neighbours. ---------
+"~/.gitconfig"           = { source = "~/asgard/personal/dotfiles/git/.gitconfig" }
+"~/.gitconfig-personal"  = { source = "~/asgard/personal/dotfiles/git/.gitconfig-personal" }
+"~/.gitconfig-kvist"     = { source = "~/asgard/personal/dotfiles/git/.gitconfig-kvist" }
+"~/.gitconfig-flowtale"  = { source = "~/asgard/personal/dotfiles/git/.gitconfig-flowtale" }
+"~/.config/git/.gitignore" = { source = "~/asgard/personal/dotfiles/git/.config/git/.gitignore" }
+
+# -- tools whose config directory is theirs alone ---------------------------
+"~/.config/direnv"     = { source = "~/asgard/personal/dotfiles/direnv/.config/direnv" }
+"~/.config/sesh"       = { source = "~/asgard/personal/dotfiles/sesh/.config/sesh" }
+"~/.config/television" = { source = "~/asgard/personal/dotfiles/television/.config/television" }
+"~/.config/kanata"     = { source = "~/asgard/personal/dotfiles/kanata/.config/kanata" }
+# Renamed from config.yaml: lazygit reads config.yml only, so the repo's
+# settings had never once been loaded, stowed or not.
+"~/.config/lazygit"    = { source = "~/asgard/personal/dotfiles/lazygit/.config/lazygit" }
+# LazyVim starter. lazy-lock.json is written here but ignored by git.
+"~/.config/nvim"       = { source = "~/asgard/personal/dotfiles/nvim/.config/nvim" }
+
+# -- Linux-only ------------------------------------------------------------
+"~/.config/regolith3" = { source = "~/asgard/personal/dotfiles/regolith/.config/regolith3", os = "linux" }
+"~/.config/systemd/user/kanata.service"        = { source = "~/asgard/personal/dotfiles/kanata/.config/systemd/user/kanata.service", os = "linux" }
+"~/.config/systemd/user/restic-backup.service" = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.service", os = "linux" }
+"~/.config/systemd/user/restic-backup.timer"   = { source = "~/asgard/personal/dotfiles/systemd/.config/systemd/user/restic-backup.timer", os = "linux" }
+
+# -- agent configs. ~/.claude is written by Claude Code itself, so the two
+#    files this repo owns are linked individually rather than the directory. -
+"~/.agents"                        = { source = "~/asgard/personal/dotfiles/agents/.agents" }
+# Also file-level, and for a sharper reason: ~/.claude-personal holds
+# .credentials.json, history.jsonl, backups/ and cache/ written by Claude
+# Code. Linking the directory would destroy the credentials.
+"~/.claude-personal/CLAUDE.md"     = { source = "~/asgard/personal/dotfiles/agents/.claude/CLAUDE.md" }
+"~/.claude-personal/agents"        = { source = "~/asgard/personal/dotfiles/agents/.claude/agents" }
+"~/.claude-personal/statusline.sh" = { source = "~/asgard/personal/dotfiles/agents/.claude/statusline.sh" }
+"~/.claude/CLAUDE.md"              = { source = "~/asgard/personal/dotfiles/agents/.claude/CLAUDE.md" }
+"~/.claude/statusline.sh"          = { source = "~/asgard/personal/dotfiles/agents/.claude/statusline.sh" }
+# The directory, not the four files inside it. A file-level entry whose
+# parent is already a symlink into this repo resolves through to the repo's
+# own file, and applying it overwrites that file with a link to itself.
+"~/.claude/agents" = { source = "~/asgard/personal/dotfiles/agents/.claude/agents" }
+
+# -- scripts. Each file, not the directory: ~/.local/bin also holds mise,
+#    claude and other installers' binaries. `manifest = "git"` links only
+#    tracked files, so a new script needs no entry here, just `git add`.
+#    `wip` is excluded because it is a directory: stow linked it whole, and a
+#    per-file link under that existing symlink would resolve back into this
+#    repo and overwrite the source with a link to itself.
+"~/.local/bin" = { source = "~/asgard/personal/dotfiles/scripts/.local/bin", mode = "symlink-each", manifest = "git", exclude = [".gitignore", "wip"] }
+
+# -- odds and ends ----------------------------------------------------------
+"~/prompts" = { source = "~/asgard/personal/dotfiles/vscode/prompts" }
+"~/.local/share/applications/icons" = { source = "~/asgard/personal/dotfiles/icons/.local/share/applications/icons" }
+
+# ---------------------------------------------------------------------------
+# OS packages and the system services they bring, replacing
+# applications/install-at.sh and the apt half of install-nvim.sh.
+# ---------------------------------------------------------------------------
+[bootstrap.packages]
+"apt:at" = { os = "linux" }
+"apt:luarocks" = { os = "linux" } # LazyVim :checkhealth
+
+# Installing `at` is not enough: `at` queues jobs that only atd runs.
+[bootstrap.services.atd]
+state = "running"
+enabled = true
+
+# ---------------------------------------------------------------------------
+# The repository this config comes from. It cannot clone itself onto a new
+# machine - this file is inside it - so README.md clones first and points
+# MISE_GLOBAL_CONFIG_FILE here for the first run. After that the [dotfiles]
+# entry above links ~/.config/mise/config.toml and a plain `mise bootstrap`
+# keeps the checkout converged. mise treats git@ and https:// URLs for the same
+# repo as equal, so the anonymous https clone the README uses matches this.
+# ---------------------------------------------------------------------------
+[bootstrap.repos]
+"~/asgard/personal/dotfiles" = { url = "git@github.com:rogvid/dotfiles.git", ref = "main" }

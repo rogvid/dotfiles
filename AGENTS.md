@@ -1,8 +1,9 @@
 # Agent Guidelines for Dotfiles Repository
 
 ## Build/Test/Deploy Commands
-- **Deploy**: `stow --verbose --restow --target=$HOME */` (stow all configurations)
-- **Setup**: `./setup.sh` (initialize dotfiles and dependencies)
+- **Deploy**: `mise bootstrap` (tools, packages, repos and every `[dotfiles]` symlink)
+- **Check for drift**: `mise bootstrap dotfiles status --missing` (non-zero if the machine diverged)
+- **Setup**: `curl https://mise.run | sh`, then `mise bootstrap --yes`
 - **Test**: No automated tests - manual verification by sourcing config files
 - **Lint**: `stylua` for Lua files (nvim config), `shellcheck` for shell scripts
 

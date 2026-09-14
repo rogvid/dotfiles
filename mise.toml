@@ -1,4 +1,5 @@
-# Development environment for this repo (not stowed - see .stow-ignore-list).
+# Development environment for this repo. Deployment of the configs themselves
+# is `mise bootstrap`, driven by mise/.config/mise/config.toml.
 # CI installs the same versions via jdx/mise-action, so local hooks and the
 # pipeline run identical tools.
 

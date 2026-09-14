@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Obsidian
+Comment=Personal Knowledge Management Software
+Exec={{ env.HOME }}/.local/share/mise/shims/obsidian --no-sandbox %U
+Terminal=false
+Type=Application
+Icon={{ env.HOME }}/.local/share/applications/icons/Obsidian.png
+Categories=Office;
+StartupNotify=false

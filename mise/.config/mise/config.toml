@@ -72,6 +72,16 @@ opencode = "latest"      # was install-opencode.sh
 container-use = "latest" # was install-container-use.sh
 restic = "latest"        # restic-backup.timer below runs it
 
+# --- desktop apps, retiring the last of applications/ ------------------------
+"github:danielmiessler/fabric" = "latest"
+"github:localsend/localsend" = { version = "latest", rename_exe = "localsend" }
+# Pinned, not "latest": Obsidian publishes mobile-only releases (1.13.8 is just
+# an .apk) and mise lists those, so "latest" can resolve to a version with no
+# Linux build. Bump by hand from github.com/obsidianmd/obsidian-releases.
+# The tarball needs no FUSE, unlike the AppImage. filter_bins keeps Electron's
+# chrome-sandbox and bundled .so files out of the shims.
+"github:obsidianmd/obsidian-releases" = { version = "1.13.7", matching = ".tar.gz", filter_bins = ["obsidian", "obsidian-cli"] }
+
 # ---------------------------------------------------------------------------
 # Machine setup. `mise bootstrap` applies everything below; `mise bootstrap
 # dotfiles status --missing` exits non-zero when this machine has drifted from
@@ -148,6 +158,11 @@ restic = "latest"        # restic-backup.timer below runs it
 # -- odds and ends ----------------------------------------------------------
 "~/prompts" = { source = "~/asgard/personal/dotfiles/vscode/prompts" }
 "~/.local/share/applications/icons" = { source = "~/asgard/personal/dotfiles/icons/.local/share/applications/icons" }
+# Launchers for the desktop apps in [tools]. Templates, because a .desktop
+# Exec line takes no ~ or $HOME. They point at the shims, so a version bump
+# needs no edit here.
+"~/.local/share/applications/Obsidian.desktop"  = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/Obsidian.desktop.tera", mode = "template", os = "linux" }
+"~/.local/share/applications/LocalSend.desktop" = { source = "~/asgard/personal/dotfiles/desktop/.local/share/applications/LocalSend.desktop.tera", mode = "template", os = "linux" }
 
 # ---------------------------------------------------------------------------
 # OS packages and the system services they bring, replacing

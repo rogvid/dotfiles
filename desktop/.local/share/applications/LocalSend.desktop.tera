@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=LocalSend
+Comment=Share files to nearby devices
+Exec={{ env.HOME }}/.local/share/mise/shims/localsend
+Terminal=false
+Type=Application
+Icon={{ env.HOME }}/.local/share/mise/installs/github-localsend-localsend/latest/data/flutter_assets/assets/img/logo-256.png
+Categories=Network;FileTransfer;
+StartupNotify=false

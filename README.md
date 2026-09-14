@@ -25,20 +25,41 @@ Do not use `mise use -g gh` for this step - it writes a real `~/.config/mise/con
 `mise bootstrap` installs the OS packages in `[bootstrap.packages]` and starts `[bootstrap.services]` (both prompt for `sudo`), symlinks every path in `[dotfiles]`, and installs every tool in `[tools]`.
 Add `--dry-run` first to see what it would do.
 
-## Checking a machine has not drifted
+## Day to day
 
-```bash
-mise bootstrap dotfiles status            # one line per managed path
-mise bootstrap dotfiles status --missing  # exits non-zero if anything drifted
+Every managed path is a symlink into this repo, so editing a config anywhere is editing the repo: the change shows up in `git status` here, ready to commit.
+
+| To | Do |
+| --- | --- |
+| Add a tool | `mise use -g <tool>` - it writes through the symlink into `mise/.config/mise/config.toml` |
+| Add a script | Put it in `scripts/.local/bin`, `git add` it, then `mise bootstrap dotfiles apply` |
+| Manage a new config file | Move it into a package directory here, add a `[dotfiles]` entry, then `mise bootstrap dotfiles apply` |
+| Add an OS package or service | Add it to `[bootstrap.packages]` or `[bootstrap.services]`, then `mise bootstrap --only packages,services` |
+| Upgrade tools | `mise upgrade` - Obsidian is pinned (see the comment in `[tools]`), so bump its version by hand |
+| Bring a machine up to date | `mise bootstrap` - it fast-forwards this checkout to `main` first, then applies |
+
+`mise bootstrap` refuses to run while this checkout has uncommitted changes, because `[bootstrap.repos]` will not touch a dirty repo.
+Commit first, or add `--skip repos` while you are mid-edit.
+
+A desktop app also needs a launcher: copy one of the templates in `desktop/` and add a `mode = "template"` entry to `[dotfiles]`.
+
+## Drift
+
+Some changes never reach `git status`: an app replaces its symlink with a real file, a new script or `[dotfiles]` entry has not been applied yet, or a declared tool, package or service is not installed.
+`mise run drift` checks all of those and prints only what is wrong, with the command that fixes it.
+
+It also runs by itself whenever a shell enters this repo (the `enter` hook in `mise.toml`), and stays silent when the machine matches.
+It takes about 150 ms and never touches the network.
+
+```text
+drift: packages - fix with: mise bootstrap --only packages
+  apt  at                       missing
 ```
 
+A link that became a real file needs `mise bootstrap dotfiles apply --force`, which discards the app's copy - diff it against the repo first.
+
 This is the part stow never had.
-When this repo was migrated, that report found ten packages that had silently never been linked on the main machine, a `lazygit` config under a filename lazygit does not read, and two directories whose contents would have been destroyed by a naive symlink.
-
-## Applications not managed by mise
-
-`applications/` keeps three installers for things mise's registry does not carry: `install-fabric.sh`, `install-localsend.sh` and `install-obsidian.sh` (the last two are AppImages).
-Everything else that used to live there is now a `[tools]` entry.
+When this repo was migrated, the status report found ten packages that had silently never been linked on the main machine, a `lazygit` config under a filename lazygit does not read, and two directories whose contents would have been destroyed by a naive symlink.
 
 ## Working on this repo
 

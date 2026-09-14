@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Report where this machine has drifted from mise/.config/mise/config.toml.
+#
+# Silent and exit 0 when the machine matches. Otherwise prints what drifted and
+# the command that fixes it, and exits 1. Runs offline in well under a second,
+# so it is cheap enough for the repo's mise `enter` hook.
+#
+# Deliberately left out: `mise bootstrap repos status`. While you work in this
+# repo the checkout is dirty or ahead of origin, so it would always report.
+set -uo pipefail
+
+export MISE_OFFLINE=1
+drifted=0
+
+# report <what> <fix> <exit code of the --missing check> <details>
+report() {
+  [[ $3 -eq 0 ]] && return
+  drifted=1
+  printf 'drift: %s - fix with: %s\n' "$1" "$2"
+  [[ -n $4 ]] && printf '%s\n' "$4" | sed 's/^/  /'
+}
+
+out=$(mise bootstrap dotfiles status --missing 2>&1)
+# "exists but is not a symlink" means an app replaced the link with its own
+# copy: diff that against the repo before `apply --force` throws it away.
+report "dotfiles" "mise bootstrap dotfiles apply (diff first, then --force, if a link became a file)" $? \
+  "$(grep -E '^~?/' <<<"$out" | grep -v ' applied$')"
+
+out=$(mise bootstrap packages status --missing 2>&1)
+report "packages" "mise bootstrap --only packages" $? \
+  "$(grep -v -E ' installed$' <<<"$out")"
+
+out=$(mise bootstrap services status --missing 2>&1)
+report "services" "mise bootstrap --only packages,services" $? "$out"
+
+# `mise ls --missing` exits 0 either way, so its output is the signal.
+out=$(mise ls --missing 2>/dev/null)
+[[ -n $out ]]
+report "tools" "mise install" $(( $? == 0 )) "$out"
+
+exit "$drifted"

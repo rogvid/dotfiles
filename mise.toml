@@ -41,6 +41,15 @@ run = '''
 description = "Full shellcheck report, warnings included (not enforced)"
 run = "git ls-files -z | xargs -0 file --mime-type | grep -E 'x-(shellscript|sh)$' | cut -d: -f1 | xargs shellcheck --severity=warning || true"
 
+[tasks.drift]
+description = "Report where this machine has drifted from the dotfiles config"
+run = "scripts/drift"
+
+# Surface drift the moment a shell enters this repo, while it is still fresh.
+# Silent when there is none. Needs `mise activate` in the shell (zsh/.zshrc).
+[hooks]
+enter = "{{ config_root }}/scripts/drift || true"
+
 [tasks.secrets]
 description = "Scan the full git history for secrets"
 run = "gitleaks git --no-banner --redact --verbose ."

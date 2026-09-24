@@ -89,3 +89,14 @@ node_modules/
 Thumbs.db
 .idea/
 *.code-workspace
+
+# Written into linked config directories by the tools themselves, not
+# declared here: skills installed by agent-setup, and television's stock
+# channels from `tv update-channels`. A channel of your own needs a line.
+/agents/.agents/skills/
+/agents/.agents/.skill-lock.json
+/television/.config/television/cable/*
+!/television/.config/television/cable/agents.toml
+!/television/.config/television/cable/dirs.toml
+!/television/.config/television/cable/projects.toml
+!/television/.config/television/cable/sesh.toml

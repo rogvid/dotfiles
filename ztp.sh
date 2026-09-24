@@ -8,12 +8,17 @@
 # checks before it acts, so re-running it on a provisioned machine is safe and
 # is also how to move the repo or change the profile.
 #
+# The clone follows git-wt's project layout: <dir>/.bare holds git's data,
+# <dir>/.git points at it, and every branch gets a worktree folder next to
+# them. ~/.dotfiles points at the main branch's, <dir>/main.
+#
 # Answer the prompts up front to run unattended:
 #
 #   curl -fsSL .../ztp.sh | bash -s -- --dir ~/src/dotfiles --profile headless --yes
 set -euo pipefail
 
 REPO_DEFAULT="https://github.com/rogvid/dotfiles.git"
+DIR_DEFAULT="$HOME/personal/projects/dotfiles"
 LINK="$HOME/.dotfiles"
 MISE_DIR="$HOME/.config/mise"
 
@@ -21,7 +26,8 @@ usage() {
   cat <<EOF
 Usage: ztp.sh [options] [-- <mise bootstrap options>]
 
-  --dir PATH         where to clone the repo      (default: ~/.dotfiles)
+  --dir PATH         the project folder to clone into
+                     (default: ~/personal/projects/dotfiles)
   --profile NAME     desktop or headless          (default: headless on WSL, else desktop)
   --repo URL         repository to clone          (default: $REPO_DEFAULT)
   --no-gh-login      skip the GitHub login offer
@@ -100,25 +106,77 @@ offer_gh_login() {
   mise x gh@latest -- gh auth login </dev/tty
 }
 
+# A branch's worktree folder: lowercase letters, digits and dashes, as git-wt
+# names them.
+slug() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+is_project() { [[ -d $1/.bare && -f $1/.git ]]; }
+
+# The project a directory belongs to: the folder holding its .bare.
+project_of() {
+  local common
+  common=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  [[ $common == */.bare ]] || return 1
+  dirname "$common"
+}
+
+main_branch() {
+  local head
+  head=$(git -C "$1" symbolic-ref --quiet --short refs/remotes/origin/HEAD) ||
+    die "cannot tell the main branch of $1: origin/HEAD is not set"
+  printf '%s' "${head#origin/}"
+}
+
+main_worktree() { printf '%s/%s' "$1" "$(slug "$(main_branch "$1")")"; }
+
+# git-wt ships with the repo, so an old plain clone converts itself.
+convert_checkout() {
+  local dir=$1
+  # ~/.dotfiles has to become the link to the project's main worktree.
+  if [[ ! -L $LINK && $(cd "$dir" && pwd -P) == $(cd "$LINK" 2>/dev/null && pwd -P) ]]; then
+    die "$LINK is a plain clone; move it to a project folder and re-run with --dir"
+  fi
+  confirm "$dir is a plain clone. Convert it to the project layout with git-wt?" y ||
+    die "$dir must be a project; convert it with: git-wt convert $dir"
+  # From /, so mise reads no project config it has not been told to trust.
+  (cd / && mise x uv@latest -- "$dir/scripts/.local/bin/git-wt" convert --force "$dir")
+}
+
 clone_repo() {
-  local dir=$1 repo=$2
-  if git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    say "Using the existing checkout at $dir"
-    return
-  fi
-  if [[ -e $dir && -n $(ls -A "$dir" 2>/dev/null) ]]; then
+  local dir=$1 repo=$2 main
+  if is_project "$dir"; then
+    say "Using the existing project at $dir"
+  elif [[ -d $dir/.git ]]; then
+    convert_checkout "$dir"
+  elif [[ -e $dir && -n $(ls -A "$dir" 2>/dev/null) ]]; then
     die "$dir exists and is not a git checkout"
+  else
+    # What `git-wt clone` does; git-wt itself arrives with this clone.
+    say "Cloning $repo to $dir"
+    mkdir -p "$dir"
+    git init --quiet --bare "$dir/.bare"
+    printf 'gitdir: ./.bare\n' >"$dir/.git"
+    # A bare repository keeps no reflogs by default; git-wt's merge check
+    # needs them.
+    git -C "$dir" config core.logAllRefUpdates true
+    git -C "$dir" remote add origin "$repo"
+    git -C "$dir" fetch --quiet origin
+    git -C "$dir" remote set-head origin --auto >/dev/null
+    git -C "$dir" symbolic-ref HEAD "refs/heads/$(main_branch "$dir")"
   fi
-  say "Cloning $repo to $dir"
-  mkdir -p "$(dirname "$dir")"
-  git clone "$repo" "$dir"
+  main=$(main_branch "$dir")
+  if [[ ! -d $(main_worktree "$dir") ]]; then
+    git -C "$dir" worktree add --quiet --track -b "$main" "$(main_worktree "$dir")" "origin/$main"
+  fi
 }
 
 # Every [dotfiles] source is ~/.dotfiles/..., so this one link is what lets the
-# repo live anywhere.
+# repo live anywhere. It points at the main worktree.
 link_repo() {
   local dir=$1 real
-  real=$(cd "$dir" && pwd -P)
+  real=$(cd "$(main_worktree "$dir")" && pwd -P)
   if [[ -L $LINK ]]; then
     [[ $(readlink -f "$LINK") == "$real" ]] && return
     confirm "$LINK points at $(readlink "$LINK"). Repoint it to $real?" y ||
@@ -200,8 +258,10 @@ main() {
 
   is_wsl && default_profile=headless
   if [[ -z $dir ]]; then
-    local default_dir=$LINK
-    [[ -L $LINK ]] && default_dir=$(readlink -f "$LINK")
+    local default_dir=$DIR_DEFAULT
+    if [[ -e $LINK ]]; then
+      default_dir=$(project_of "$LINK" || readlink -f "$LINK")
+    fi
     dir=$(ask "Clone the dotfiles to" "$default_dir")
   fi
   dir=$(expand_home "$dir")

@@ -11,10 +11,12 @@ curl -fsSL https://raw.githubusercontent.com/rogvid/dotfiles/main/ztp.sh | bash
 
 `ztp.sh` asks two things, then does the rest:
 
-1. **Where to clone the repo** - anywhere; the default is `~/.dotfiles`.
+1. **Where to clone the repo** - anywhere; the default is `~/personal/projects/dotfiles`.
 2. **Which profile** - `desktop`, or `headless` for WSL, servers and containers. It defaults to `headless` when it detects WSL.
 
 It installs git (via apt, if missing) and mise, offers a GitHub login, clones the repo, and runs `mise bootstrap`, which asks for `sudo` for OS packages and services.
+The clone is a `git-wt` project: `.bare` holds git's data, `.git` points at it, and every branch gets a worktree folder next to them, the main branch's being `main/`.
+Re-running it on a machine with an old plain clone offers to convert that clone with `git-wt convert`.
 Only `curl` needs to be present.
 
 To skip the prompts, answer them up front:
@@ -31,7 +33,7 @@ Clones use https; switch with `git remote set-url origin git@github.com:rogvid/d
 
 ## How it fits together
 
-- **`~/.dotfiles`** is a symlink to wherever the repo was cloned (or the clone itself). Every `[dotfiles]` source goes through it, so moving the repo means re-running `ztp.sh --dir <new path>`.
+- **`~/.dotfiles`** is a symlink to the main worktree of wherever the repo was cloned, `<dir>/main`. Every `[dotfiles]` source goes through it, so moving the repo means re-running `ztp.sh --dir <new path>`.
 - **`mise/.config/mise/config.toml`** is loaded on every machine: shell, editor, git, CLI tools, scripts - everything a terminal needs.
 - **`mise/.config/mise/config.desktop.toml`** is loaded by the `desktop` profile only: kanata, Obsidian and LocalSend with their launchers, the restic units, and `at` with `atd`. WSL gets none of it - no keyboard to remap, no Linux GUI apps, and possibly no systemd.
 - **`~/.config/mise/miserc.toml`** is not in the repo. `ztp.sh` writes it to record the machine's profile.

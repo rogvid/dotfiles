@@ -97,6 +97,8 @@ Thumbs.db
 # declared here: skills installed by agent-setup, and television's stock
 # channels from `tv update-channels`. A channel of your own needs a line.
 /agents/.agents/skills/
+!/agents/.agents/skills/agent-sidebar/
+!/agents/.agents/skills/agent-sidebar/**
 /agents/.agents/.skill-lock.json
 /television/.config/television/cable/*
 !/television/.config/television/cable/agents.toml

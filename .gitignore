@@ -90,6 +90,9 @@ Thumbs.db
 .idea/
 *.code-workspace
 
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
 # Written into linked config directories by the tools themselves, not
 # declared here: skills installed by agent-setup, and television's stock
 # channels from `tv update-channels`. A channel of your own needs a line.

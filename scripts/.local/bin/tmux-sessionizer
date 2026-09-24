@@ -3,44 +3,50 @@
 if [[ $# -eq 1 ]]; then
   selected=$1
 else
-  # Locate projects/ and worktrees/ container dirs in one pass.
+  # Locate projects/ container dirs in one pass.
   # Prune hidden + heavy dirs so we don't walk node_modules, .cache, etc.
   containers=$(find ~ -maxdepth 6 \
     \( -path '*/.*' -o -name node_modules -o -name target -o -name venv -o -name __pycache__ -o -name dist -o -name build \) -prune \
-    -o -type d \( -path '*/work/*/projects' -o -path '*/personal/projects' -o -path '*/work/*/worktrees' -o -path '*/personal/worktrees' \) -print 2>/dev/null)
+    -o -type d \( -path '*/work/*/projects' -o -path '*/personal/projects' \) -print 2>/dev/null)
 
-  # Git repos inside each projects/ folder
-  projects=$(echo "$containers" | grep '/projects$' \
-    | while read -r dir; do find "$dir" -maxdepth 2 -name .git -type d -prune -exec dirname {} \;; done)
+  # Plain clones inside each projects/ folder, and every worktree of the
+  # projects git-wt lays out there (a .bare next to a folder per worktree).
+  candidates=$(echo "$containers" \
+    | while read -r dir; do
+        [[ -n $dir ]] || continue
+        find "$dir" -mindepth 2 -maxdepth 2 -name .git -type d -prune -exec dirname {} \;
+        find "$dir" -mindepth 2 -maxdepth 2 -name .bare -type d -prune -exec dirname {} \; \
+          | while read -r project; do
+              find "$project" -mindepth 2 -maxdepth 2 -name .git -type f -exec dirname {} \;
+            done
+      done | sort)
 
-  # Worktree dirs, prefixed with [WT]
-  worktrees=$(echo "$containers" | grep '/worktrees$' \
-    | while read -r dir; do find "$dir" -mindepth 1 -maxdepth 1 -type d; done \
-    | sed 's/^/[WT] /')
-
-  # Combine both lists and use fzf. --print-query emits the typed query on the
-  # first line so we can fall back to zoxide when nothing in the list matches.
-  fzf_out=$(printf "%s\n%s" "$projects" "$worktrees" \
-    | fzf --print-query --preview 'tree -C $(echo {} | sed "s/^\[WT\] //") | head -200')
+  # --print-query emits the typed query on the first line so we can fall
+  # back to zoxide when nothing in the list matches.
+  fzf_out=$(echo "$candidates" | fzf --print-query --preview 'tree -C {} | head -200')
 
   query=$(echo "$fzf_out" | sed -n '1p')
   selected=$(echo "$fzf_out" | sed -n '2p')
 
-  # No project/worktree matched the query — ask zoxide for a directory.
+  # No project/worktree matched the query - ask zoxide for a directory.
   if [[ -z $selected && -n $query ]]; then
     selected=$(zoxide query -- "$query" 2>/dev/null)
   fi
-
-  # Remove [WT] prefix if present
-  selected=$(echo "$selected" | sed 's/^\[WT\] //')
 fi
 
 if [[ -z $selected ]]; then
   exit 0
 fi
 
-# tmux reads `.` and `:` in a target as window and pane separators.
-selected_name=$(basename "$selected" | tr .: __)
+# git-wt names a project's sessions and knows its main worktree, which is
+# where the project folder itself opens. Anything else is named after its
+# folder; tmux reads `.` and `:` in a target as window and pane separators.
+if session=$(git-wt session "$selected" 2>/dev/null); then
+  selected_name=${session%%$'\t'*}
+  selected=${session#*$'\t'}
+else
+  selected_name=$(basename "$selected" | tr .: __)
+fi
 
 if ! tmux has-session -t="$selected_name" 2>/dev/null; then
   tmux new-session -ds "$selected_name" -c "$selected"

@@ -37,6 +37,8 @@
   velocity = "!git log --format='%ad' --date=format:'%Y-%m' | sort | uniq -c"
   firefighting = "!git log --oneline --since='1 year ago' | grep -iE 'revert|hotfix|emergency|rollback'"
   # Worktree stuff
+  # Clone as a project: <repo>/.bare plus a worktree folder per branch
+  # git wtclone https://github.com/owner/repo/tree/feat/x
   # Create/switch to worktree
   # git wta feat/new-feature
   # List all worktrees
@@ -47,6 +49,7 @@
   # git wtp -d
   # Create and open in tmux
   # git wta -t fix/bug
+  wtclone = !git-wt clone
   wta = !git-wt-add
   wtls = !git-wt-list
   wtrm = !git-wt-remove

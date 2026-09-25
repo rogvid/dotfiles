@@ -137,6 +137,12 @@ restic = "latest"
 # parent is already a symlink into this repo resolves through to the repo's
 # own file, and applying it overwrites that file with a link to itself.
 "~/.claude/agents" = { source = "~/.dotfiles/agents/.claude/agents" }
+# The other harnesses read AGENTS.md natively, each from its own config dir,
+# so they get the canonical file itself. File-level: the dirs hold auth and
+# sessions.
+"~/.codex/AGENTS.md"           = { source = "~/.dotfiles/agents/.agents/AGENTS.md" }
+"~/.config/opencode/AGENTS.md" = { source = "~/.dotfiles/agents/.agents/AGENTS.md" }
+"~/.pi/agent/AGENTS.md"        = { source = "~/.dotfiles/agents/.agents/AGENTS.md" }
 
 # -- scripts. Each file, not the directory: ~/.local/bin also holds mise,
 #    claude and other installers' binaries. `manifest = "git"` links only

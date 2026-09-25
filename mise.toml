@@ -63,4 +63,5 @@ run = [
   "scripts/tests/test-git-wt",
   "scripts/tests/test-git-wt-bootstrap",
   "scripts/tests/test-git-projects",
+  "scripts/tests/test-agent-setup",
 ]

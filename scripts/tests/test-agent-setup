@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# End-to-end checks for agent-setup's Claude Code skill links, on a throwaway
+# HOME laid out like the real one: a skill pool in ~/.agents/skills and two
+# Claude Code config dirs, ~/.claude and a ~/.claude-personal profile.
+#
+# curl and npx are stubs that fail loudly, so nothing here reaches the network:
+# peon-ping is already "installed" and the manifest declares no skills.
+#
+# As on the real machine, ~/.agents is a link into the dotfiles repo, which
+# tracks agent-sidebar; grilling stands in for a skill fetched with npx.
+#
+# Run: scripts/tests/test-agent-setup     (or `mise run test`)
+
+set -euo pipefail
+
+# As a pre-commit hook this runs with git's GIT_INDEX_FILE and friends set,
+# which would point the throwaway dotfiles repo at this repo's index.
+while IFS= read -r name; do
+    unset "${name}"
+done < <(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
+
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
+readonly repo
+scratch="$(mktemp -d)"
+readonly scratch
+trap 'rm -rf "${scratch}"' EXIT
+
+export HOME="${scratch}/home"
+export DOTFILES="${scratch}/dotfiles"
+readonly pool="${HOME}/.agents/skills"
+readonly stubs="${scratch}/stubs"
+
+mkdir -p "${stubs}" "${DOTFILES}/agents/.agents" "${HOME}/.claude/hooks/peon-ping"
+for cmd in curl npx; do
+    printf '#!/bin/sh\necho "%s must not run" >&2\nexit 1\n' "${cmd}" >"${stubs}/${cmd}"
+    chmod +x "${stubs}/${cmd}"
+done
+export PATH="${stubs}:${repo}/scripts/.local/bin:${PATH}"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+ln -s "${DOTFILES}/agents/.agents" "${HOME}/.agents"
+printf '#!/bin/sh\n' >"${HOME}/.claude/hooks/peon-ping/peon.sh"
+chmod +x "${HOME}/.claude/hooks/peon-ping/peon.sh"
+printf '# nothing declared\n' >"${DOTFILES}/agents/.agents/skills.list"
+
+for skill in agent-sidebar grilling; do
+    mkdir -p "${pool}/${skill}"
+    printf -- '---\nname: %s\n---\n' "${skill}" >"${pool}/${skill}/SKILL.md"
+done
+mkdir -p "${pool}/not-a-skill"
+git init -q "${DOTFILES}"
+git -C "${DOTFILES}" add agents/.agents/skills/agent-sidebar
+
+# ~/.claude already has one link, a skill of its own named like a pool skill,
+# a link to a pool skill since removed, and an unrelated broken link.
+readonly claude="${HOME}/.claude/skills" personal="${HOME}/.claude-personal/skills"
+mkdir -p "${claude}/synced" "${claude}/grilling" "${personal}/synced"
+ln -s ../../.agents/skills/agent-sidebar "${claude}/agent-sidebar"
+ln -s ../../.agents/skills/gone "${claude}/gone"
+ln -s /nowhere/else "${claude}/elsewhere"
+printf 'own\n' >"${claude}/grilling/SKILL.md"
+
+failures=0
+total=0
+
+check() {
+    local name="$1"
+    shift
+    total=$((total + 1))
+    if "$@" 2>/dev/null; then
+        printf 'ok    %s\n' "${name}"
+    else
+        printf 'FAIL  %s\n' "${name}"
+        failures=$((failures + 1))
+    fi
+}
+
+not() { ! "$@"; }
+same() { [[ "$1" == "$2" ]]; }
+links_to_pool() { [[ -L "$1" && "$(readlink -f "$1")" == "$(readlink -f "${pool}/$2")" ]]; }
+contains() { [[ "$1" == *"$2"* ]]; }
+
+out="$(agent-setup --check 2>&1)"
+check "--check reports the missing link" contains "${out}" "would: link ${personal}/agent-sidebar"
+check "--check reports the dangling link" contains "${out}" "would: remove dangling ${claude}/gone"
+check "--check links nothing" not test -e "${personal}/agent-sidebar"
+check "--check removes nothing" test -L "${claude}/gone"
+
+out="$(agent-setup 2>&1)"
+check "a profile config dir gets every pool skill" links_to_pool "${personal}/agent-sidebar" agent-sidebar
+check "and the other one" links_to_pool "${personal}/grilling" grilling
+check "the links are relative, like npx skills makes them" \
+    same "$(readlink "${personal}/grilling")" ../../.agents/skills/grilling
+check "the default config dir keeps its existing link" links_to_pool "${claude}/agent-sidebar" agent-sidebar
+check "a dir without SKILL.md is not linked" not test -e "${personal}/not-a-skill"
+check "a skill Claude Code owns is not replaced" same "$(cat "${claude}/grilling/SKILL.md")" own
+check "and the run says why it was skipped" contains "${out}" "skipped  ${claude}/grilling - not a symlink"
+check "a link to a removed pool skill is pruned" not test -L "${claude}/gone"
+check "an unrelated broken link is left alone" test -L "${claude}/elsewhere"
+check "Claude Code's synced dir is left alone" test -d "${personal}/synced"
+
+undeclared() { sed -n '/in the pool but not declared/,/remove any/p' <<<"$1"; }
+check "a skill dotfiles tracks is not offered for removal" \
+    not contains "$(undeclared "${out}")" "  agent-sidebar"
+check "an undeclared skill from elsewhere still is" contains "$(undeclared "${out}")" "  grilling"
+
+out="$(agent-setup 2>&1)"
+check "a second run changes nothing" \
+    contains "${out}" "every Claude Code config dir links every pool skill"
+
+printf '\n%s/%s passed\n' "$((total - failures))" "${total}"
+((failures == 0))

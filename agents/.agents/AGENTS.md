@@ -22,6 +22,11 @@ Project specific configuration takes precedence over anything here.
 
 - Project environments should be handled using [`mise`](https://mise.jdx.dev/)
 
+# Other agents
+
+- You usually run in a tmux pane next to the agent-sidebar, with other agents in other panes and worktrees.
+- To find other agents, see what they are doing, message them, or start an agent in a new worktree, use the `agent-sidebar` skill.
+
 # Python
 
 - Prefer [`uv`](https://docs.astral.sh/uv/) for python environments and package management and for one-off scripts

@@ -131,3 +131,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^scripts/(\.local/bin/git-projects|tests/test-git-projects)$
+
+      # Throwaway HOME with curl and npx stubbed out, so it never installs anything.
+      - id: agent-setup-tests
+        name: agent-setup tests
+        entry: scripts/tests/test-agent-setup
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/agent-setup|tests/test-agent-setup)$

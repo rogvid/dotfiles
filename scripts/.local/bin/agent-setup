@@ -8,8 +8,8 @@
 #   agent-setup            install what is missing
 #   agent-setup --check    report what would change, touch nothing
 #
-# Safe to re-run. Does not link anything - run `mise bootstrap dotfiles apply`
-# yourself once you are happy with what this reports.
+# Safe to re-run. Links only the skill adapters Claude Code needs - run
+# `mise bootstrap dotfiles apply` yourself once you are happy with what this reports.
 set -euo pipefail
 
 DOTFILES="${DOTFILES:-$HOME/.dotfiles}"
@@ -64,11 +64,50 @@ install_skills() {
   (( missing )) || say "all declared skills present"
 }
 
+# Every harness but Claude Code reads ~/.agents/skills natively. Claude Code reads
+# only its config dir, and each CLAUDE_CONFIG_DIR profile (~/.claude-*) is its own,
+# so every one gets a link per pool skill. Links into the pool whose skill is gone
+# are pruned; anything else in there belongs to Claude Code and is left alone.
+link_claude_skills() {
+  head_ "skills -> Claude Code config dirs"
+  local pool="${HOME}/.agents/skills" cfg dir skill name link changed=0
+  for cfg in "${HOME}/.claude" "${HOME}"/.claude-*/; do
+    cfg="${cfg%/}"
+    [[ -d "$cfg" ]] || continue
+    dir="${cfg}/skills"
+    for skill in "$pool"/*/; do
+      [[ -f "${skill}SKILL.md" ]] || continue
+      name="$(basename "$skill")"
+      link="${dir}/${name}"
+      [[ -L "$link" && -e "$link" ]] && continue
+      if [[ -e "$link" && ! -L "$link" ]]; then
+        say "skipped  ${link} - not a symlink"
+        continue
+      fi
+      changed=1
+      would "link ${link}" || continue
+      mkdir -p "$dir"
+      ln -sfn "../../.agents/skills/${name}" "$link"
+      say "linked   ${link}"
+    done
+    for link in "$dir"/*; do
+      [[ -L "$link" && ! -e "$link" && "$(readlink "$link")" == *".agents/skills/"* ]] || continue
+      changed=1
+      would "remove dangling ${link}" || continue
+      rm "$link"
+      say "removed  ${link}"
+    done
+  done
+  (( changed )) || say "every Claude Code config dir links every pool skill"
+}
+
 report_undeclared() {
   head_ "in the pool but not declared"
-  local declared
-  declared="$(grep -vE '^\s*#|^\s*$' "$SKILL_LIST" | awk '{print $2}' | sort -u)"
-  comm -23 <(ls "${HOME}/.agents/skills" 2>/dev/null | sort) <(printf '%s\n' "$declared") \
+  local declared owned
+  declared="$( { grep -vE '^\s*#|^\s*$' "$SKILL_LIST" || true; } | awk '{print $2}')"
+  # Skills dotfiles tracks are its own, not leftovers; `npx skills remove` would delete them.
+  owned="$( { git -C "$DOTFILES" ls-files -- agents/.agents/skills 2>/dev/null || true; } | cut -d/ -f4)"
+  comm -23 <(ls "${HOME}/.agents/skills" 2>/dev/null | sort) <(printf '%s\n' "$declared" "$owned" | sort -u) \
     | sed 's/^/  /' | grep . || say "none"
   say "remove any you no longer want with: npx skills remove <name>"
 }
@@ -79,6 +118,7 @@ main() {
   (( CHECK )) && echo "check mode - nothing will be modified"
   install_peon_ping
   install_skills
+  link_claude_skills
   report_undeclared
   head_ "next"
   say "mise bootstrap dotfiles apply"

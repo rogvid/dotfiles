@@ -1,7 +1,8 @@
 # Skills installed into the canonical pool at ~/.agents/skills.
 #
-# Every harness except Claude Code reads that path natively; `npx skills` writes the
-# one adapter symlink Claude Code needs. Format: <owner/repo> <skill>
+# Every harness except Claude Code reads that path natively; `agent-setup` links each
+# pool skill, these and the ones dotfiles own, into every Claude Code config dir.
+# Format: <owner/repo> <skill>
 #
 # Add a line, run `agent-setup`. Remove a line and the skill stays on disk until you
 # run `npx skills remove <skill>` - deliberately, so nothing disappears silently.

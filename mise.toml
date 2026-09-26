@@ -54,6 +54,10 @@ enter = "{{ config_root }}/scripts/drift || true"
 description = "Scan the full git history for secrets"
 run = "gitleaks git --no-banner --redact --verbose ."
 
+[tasks.eval-agents]
+description = "Check how agents use the agent-sidebar, on a free OpenCode model (manual, slow)"
+run = "evals/agent-sidebar/run"
+
 [tasks.test]
 description = "Run the repo's own tests"
 run = [

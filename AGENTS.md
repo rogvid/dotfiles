@@ -5,11 +5,13 @@
 - **Check for drift**: `mise run drift` (non-zero if the machine diverged; also runs on entering the repo)
 - **Setup**: `ztp.sh` (see README.md; `[dotfiles]` sources go through the `~/.dotfiles` link it creates)
 - **Test**: `mise run test`
+- **Agent evals**: `mise run eval-agents [TASK...]` (manual, not in hooks; free OpenCode model, about a minute a task; see `evals/agent-sidebar/run`)
 - **Lint**: `stylua` for Lua files (nvim config), `shellcheck` for shell scripts
 
-## Reviews and Evals When Claude Usage Runs Out
-- Reviews and evals here run on Claude by default: subagents, `/code-review` and `claude -p`.
-- When one fails on the personal account's usage limit (HTTP 429, "You've hit your session limit · resets <time>"), note the reset time and run reviews and evals with `opencode-free "<prompt>"` until then, without retrying Claude first.
+## Reviews and Evals on Free Models
+- `mise run eval-agents` always runs on a free OpenCode model through `opencode-free`, so it costs no Claude usage.
+- Reviews run on Claude by default: subagents, `/code-review` and `claude -p`.
+- When a review fails on the personal account's usage limit (HTTP 429, "You've hit your session limit · resets <time>"), note the reset time and run reviews with `opencode-free "<prompt>"` until then, without retrying Claude first.
 - `opencode-free` runs OpenCode's free models (big-pickle, then nemotron-3-ultra-free) in the current directory and keeps them off the user's tmux server.
 - Never call `opencode run` directly for this: reviewing models run tmux to test their ideas, and one typed into the calling pane.
 - Give it the brief a Claude reviewer would get, naming the diff or files to read.

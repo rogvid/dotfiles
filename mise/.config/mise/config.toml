@@ -160,3 +160,4 @@ restic = "latest"
 # ---------------------------------------------------------------------------
 [bootstrap.packages]
 "apt:luarocks" = { os = "linux" } # LazyVim :checkhealth
+"apt:libpcsclite-dev" = { os = "linux" } # PC/SC headers, for YubiKey tools

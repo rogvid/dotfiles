@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Checks for opencode-free with opencode as a stand-in that records how it was
+# run, and runs tmux the way a reviewing model does.
+#
+# Run: scripts/tests/test-opencode-free     (or `mise run test`)
+
+set -euo pipefail
+
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
+readonly repo
+scratch="$(mktemp -d)"
+readonly scratch
+trap 'tmux -L "opencode-free-test-$$" kill-server 2>/dev/null || true; rm -rf "${scratch}"' EXIT
+
+mkdir -p "${scratch}/bin"
+# Fails for the models named in FAIL_MODELS; logs model, prompt and tmux env,
+# and starts a tmux session the way a model testing its theory would.
+cat >"${scratch}/bin/opencode" <<EOF
+#!/usr/bin/env bash
+model="\$3"
+printf '%s|%s|TMUX=%s|TMUX_PANE=%s|TMUX_TMPDIR=%s\n' "\${model}" "\$4" "\${TMUX:-}" "\${TMUX_PANE:-}" "\${TMUX_TMPDIR:-}" >>"${scratch}/calls"
+[[ " \${FAIL_MODELS:-} " == *" \${model#opencode/} "* ]] && exit 1
+tmux new-session -d -s probe && echo "\${TMUX_TMPDIR}" >"${scratch}/probe-dir"
+echo "review done"
+EOF
+chmod +x "${scratch}/bin/opencode"
+export PATH="${scratch}/bin:${repo}/scripts/.local/bin:${PATH}"
+
+# The caller's own tmux server, standing in for the user's.
+tmux -L "opencode-free-test-$$" -f /dev/null new-session -d -s user
+socket="$(tmux -L "opencode-free-test-$$" display-message -p '#{socket_path}')"
+export TMUX="${socket},0,0" TMUX_PANE="%0"
+
+failures=0
+total=0
+check() {
+    local name="$1"
+    shift
+    total=$((total + 1))
+    if "$@" 2>/dev/null; then
+        printf 'ok    %s\n' "${name}"
+    else
+        printf 'FAIL  %s\n' "${name}"
+        failures=$((failures + 1))
+    fi
+}
+not() { ! "$@"; }
+same() { [[ "$1" == "$2" ]]; }
+line() { sed -n "$1p" "${scratch}/calls"; }
+
+out="$(opencode-free "review this")"
+check "runs big-pickle first" same "$(line 1 | cut -d'|' -f1)" opencode/big-pickle
+check "passes the prompt through" same "$(line 1 | cut -d'|' -f2)" "review this"
+check "prints the model's answer" same "${out}" "review done"
+check "drops TMUX" same "$(line 1 | cut -d'|' -f3)" "TMUX="
+check "drops TMUX_PANE" same "$(line 1 | cut -d'|' -f4)" "TMUX_PANE="
+check "the model's tmux lands off the user's server" \
+    not tmux -L "opencode-free-test-$$" has-session -t =probe
+check "and its private server is gone afterwards" \
+    not test -e "$(cat "${scratch}/probe-dir")"
+check "the user's server and sessions survive" tmux -L "opencode-free-test-$$" has-session -t =user
+
+rm -f "${scratch}/calls"
+FAIL_MODELS=big-pickle opencode-free "again" >/dev/null 2>&1
+check "falls back to the next model" same "$(line 2 | cut -d'|' -f1)" opencode/nemotron-3-ultra-free
+
+rm -f "${scratch}/calls"
+check "fails when every model fails" \
+    not env FAIL_MODELS="big-pickle nemotron-3-ultra-free" opencode-free "x"
+OPENCODE_FREE_MODELS="longcat-2.5-preview-free" opencode-free "x" >/dev/null
+check "OPENCODE_FREE_MODELS picks the models" same "$(line 3 | cut -d'|' -f1)" opencode/longcat-2.5-preview-free
+check "no prompt is a usage error" not opencode-free
+check "the user's server survives every run" tmux -L "opencode-free-test-$$" has-session -t =user
+
+printf '\n%s/%s passed\n' "$((total - failures))" "${total}"
+((failures == 0))

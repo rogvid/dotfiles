@@ -7,6 +7,13 @@
 - **Test**: `mise run test`
 - **Lint**: `stylua` for Lua files (nvim config), `shellcheck` for shell scripts
 
+## Reviews and Evals When Claude Usage Runs Out
+- Reviews and evals here run on Claude by default: subagents, `/code-review` and `claude -p`.
+- When one fails on the personal account's usage limit (HTTP 429, "You've hit your session limit · resets <time>"), note the reset time and run reviews and evals with `opencode-free "<prompt>"` until then, without retrying Claude first.
+- `opencode-free` runs OpenCode's free models (big-pickle, then nemotron-3-ultra-free) in the current directory and keeps them off the user's tmux server.
+- Never call `opencode run` directly for this: reviewing models run tmux to test their ideas, and one typed into the calling pane.
+- Give it the brief a Claude reviewer would get, naming the diff or files to read.
+
 ## Code Style & Conventions
 
 ### Shell Scripts (.sh, .bash, .zsh)

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# opencode-free PROMPT... - one `opencode run` on a free OpenCode model, for
+# reviews and evals when the Claude account's usage limit is reached.
+#
+# Models are tried in order until one succeeds: OPENCODE_FREE_MODELS, default
+# big-pickle, then nemotron-3-ultra-free. Both found a planted bug in a review
+# test; space-bunny-free missed it and mimo-v2.6-flash-free took minutes.
+#
+# The run never reaches your tmux server. Models test their theories by
+# running tmux, and one inheriting TMUX_PANE sent keys into the calling pane.
+# So TMUX and TMUX_PANE are dropped and TMUX_TMPDIR points at a throwaway
+# directory: any tmux it runs starts a private server there, killed after.
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+    sed -n '2,/^$/s/^# \{0,1\}//p' "$0" >&2
+    exit 2
+fi
+
+read -r -a models <<<"${OPENCODE_FREE_MODELS:-big-pickle nemotron-3-ultra-free}"
+sandbox="$(mktemp -d)"
+# By socket path: plain `tmux kill-server` here would follow this shell's own
+# TMUX to the caller's server and kill every session in it.
+cleanup() {
+    tmux -S "${sandbox}/tmux-$(id -u)/default" kill-server 2>/dev/null || true
+    rm -rf "${sandbox}"
+}
+trap cleanup EXIT
+
+for model in "${models[@]}"; do
+    if env -u TMUX -u TMUX_PANE TMUX_TMPDIR="${sandbox}" \
+        opencode run -m "opencode/${model}" "$@"; then
+        exit 0
+    fi
+    echo "opencode-free: opencode/${model} failed, trying the next model" >&2
+done
+echo "opencode-free: every model failed: ${models[*]}" >&2
+exit 1

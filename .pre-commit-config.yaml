@@ -139,3 +139,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^scripts/(\.local/bin/agent-setup|tests/test-agent-setup)$
+
+      # A stand-in opencode that runs tmux, against a stand-in user server.
+      - id: opencode-free-tests
+        name: opencode-free tests
+        entry: scripts/tests/test-opencode-free
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/opencode-free|tests/test-opencode-free)$

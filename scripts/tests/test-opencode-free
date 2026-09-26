@@ -72,5 +72,21 @@ check "OPENCODE_FREE_MODELS picks the models" same "$(line 3 | cut -d'|' -f1)" o
 check "no prompt is a usage error" not opencode-free
 check "the user's server survives every run" tmux -L "opencode-free-test-$$" has-session -t =user
 
+# An eval's sandbox: a throwaway server the caller owns, at a dir's default socket.
+box="${scratch}/box"
+mkdir -p "${box}/tmux-$(id -u)" && chmod 700 "${box}/tmux-$(id -u)"
+tmux -S "${box}/tmux-$(id -u)/default" -f /dev/null new-session -d -s sandbox
+rm -f "${scratch}/calls"
+TMUX_PANE="%7" OPENCODE_FREE_TMUX_TMPDIR="${box}" opencode-free "eval" >/dev/null
+check "a sandbox dir hands the run that server" \
+    same "$(line 1 | cut -d'|' -f3)" "TMUX=${box}/tmux-$(id -u)/default,0,0"
+check "with the caller's pane in it" same "$(line 1 | cut -d'|' -f4)" "TMUX_PANE=%7"
+check "the model's tmux lands in the sandbox" tmux -S "${box}/tmux-$(id -u)/default" has-session -t =probe
+check "which is left running" tmux -S "${box}/tmux-$(id -u)/default" has-session -t =sandbox
+check "and the user's server is untouched" not tmux -L "opencode-free-test-$$" has-session -t =probe
+tmux -S "${box}/tmux-$(id -u)/default" kill-server
+check "a sandbox dir without a server is refused" \
+    not env OPENCODE_FREE_TMUX_TMPDIR="${box}" opencode-free "x"
+
 printf '\n%s/%s passed\n' "$((total - failures))" "${total}"
 ((failures == 0))

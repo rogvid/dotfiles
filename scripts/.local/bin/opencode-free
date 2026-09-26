@@ -10,6 +10,10 @@
 # running tmux, and one inheriting TMUX_PANE sent keys into the calling pane.
 # So TMUX and TMUX_PANE are dropped and TMUX_TMPDIR points at a throwaway
 # directory: any tmux it runs starts a private server there, killed after.
+#
+# OPENCODE_FREE_TMUX_TMPDIR=DIR instead hands the run the tmux server the
+# caller started at DIR's default socket, such as an eval's sandbox, together
+# with TMUX_PANE, which then names a pane in that server. It is left running.
 set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
@@ -18,18 +22,28 @@ if [[ $# -eq 0 ]]; then
 fi
 
 read -r -a models <<<"${OPENCODE_FREE_MODELS:-big-pickle nemotron-3-ultra-free}"
-sandbox="$(mktemp -d)"
-# By socket path: plain `tmux kill-server` here would follow this shell's own
-# TMUX to the caller's server and kill every session in it.
-cleanup() {
-    tmux -S "${sandbox}/tmux-$(id -u)/default" kill-server 2>/dev/null || true
-    rm -rf "${sandbox}"
-}
-trap cleanup EXIT
+
+if [[ -n "${OPENCODE_FREE_TMUX_TMPDIR:-}" ]]; then
+    socket="${OPENCODE_FREE_TMUX_TMPDIR}/tmux-$(id -u)/default"
+    if ! tmux -S "${socket}" has-session 2>/dev/null; then
+        echo "opencode-free: no tmux server at ${socket}" >&2
+        exit 2
+    fi
+    tmux_env=(TMUX="${socket},0,0" TMUX_TMPDIR="${OPENCODE_FREE_TMUX_TMPDIR}")
+else
+    sandbox="$(mktemp -d)"
+    # By socket path: plain `tmux kill-server` here would follow this shell's
+    # own TMUX to the caller's server and kill every session in it.
+    cleanup() {
+        tmux -S "${sandbox}/tmux-$(id -u)/default" kill-server 2>/dev/null || true
+        rm -rf "${sandbox}"
+    }
+    trap cleanup EXIT
+    tmux_env=(-u TMUX -u TMUX_PANE TMUX_TMPDIR="${sandbox}")
+fi
 
 for model in "${models[@]}"; do
-    if env -u TMUX -u TMUX_PANE TMUX_TMPDIR="${sandbox}" \
-        opencode run -m "opencode/${model}" "$@"; then
+    if env "${tmux_env[@]}" opencode run -m "opencode/${model}" "$@"; then
         exit 0
     fi
     echo "opencode-free: opencode/${model} failed, trying the next model" >&2

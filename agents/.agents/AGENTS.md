@@ -26,6 +26,17 @@ Project specific configuration takes precedence over anything here.
 
 - You usually run in a tmux pane next to the agent-sidebar, with other agents in other panes and worktrees.
 - To find other agents, see what they are doing, message them, or start an agent in a new worktree, use the `agent-sidebar` skill.
+- Address other agents by the tmux pane id `agent-scan` gives, not through your harness's built-in agent messaging: that reaches only sessions of the same harness and does not say which one works on what.
+
+## When to start workers in worktrees
+
+Before you start on a request, check whether it is one for workers.
+
+- It is when it has two or more parts that do not depend on each other (separate features, fixes or investigations) and any part is more than a few lines, or when it would disrupt work in progress on the current branch.
+- Then build nothing yet: name one branch per part, offer to start a worker for each in its own worktree, and wait for the user's answer.
+- Otherwise do the work yourself in the current worktree.
+- Never start workers without the user's go-ahead: each one costs usage and adds a tmux session.
+- When the user agrees, or asks for workers directly, start them with the `agent-sidebar` skill's `spawn`, not your harness's built-in worktree subagents, so they show up in the sidebar.
 
 # Python
 

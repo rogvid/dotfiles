@@ -161,3 +161,32 @@ restic = "latest"
 [bootstrap.packages]
 "apt:luarocks" = { os = "linux" } # LazyVim :checkhealth
 "apt:libpcsclite-dev" = { os = "linux" } # PC/SC headers, for YubiKey tools
+"apt:pcscd" = { os = "linux" } # the PC/SC daemon they talk to the YubiKey through
+
+# pcscd admits only users in an active local session, and a WSL session has
+# no seat, so polkit never counts it as one: every PC/SC client, the YubiKey
+# tools included, is turned away. plugdev members may use it from any session.
+[bootstrap.files."/etc/polkit-1/rules.d/60-pcscd-plugdev.rules"]
+owner = "root"
+group = "root"
+mode = "0644"
+content = '''
+polkit.addRule(function (action, subject) {
+    if ((action.id == "org.debian.pcsc-lite.access_pcsc" ||
+         action.id == "org.debian.pcsc-lite.access_card") &&
+        subject.isInGroup("plugdev")) {
+        return polkit.Result.YES;
+    }
+});
+'''
+
+# The YubiKey's FIDO and OTP interfaces are hidraw devices, root-only unless
+# logind hands the seat's user an ACL, which a WSL session never gets. plugdev
+# may use them from any session. udev applies it when the key is next added.
+[bootstrap.files."/etc/udev/rules.d/70-yubikey-plugdev.rules"]
+owner = "root"
+group = "root"
+mode = "0644"
+content = '''
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1050", GROUP="plugdev", MODE="0660"
+'''

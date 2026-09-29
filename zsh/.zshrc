@@ -111,6 +111,15 @@ export NVM_DIR="$HOME/.nvm"
 if [[ $(grep -i Microsoft /proc/version) ]]; then
   export ZED_ALLOW_EMULATED_GPU=1
   alias zed="WAYLAND_DISPLAY='' zed"
+
+  # Every WSL distro shares one kernel, and another one resetting its binfmt
+  # entries takes WSL's own with it: Windows programs then fail with "exec
+  # format error", which breaks the SSH agent relay and the YubiKey attach
+  # below. Re-registering needs root, so say how instead of failing quietly.
+  if [[ ! -e /proc/sys/fs/binfmt_misc/WSLInterop && ! -e /proc/sys/fs/binfmt_misc/WSLInterop-late ]]; then
+    print -u2 "WSL cannot run Windows programs (WSLInterop is not registered). Fix:"
+    print -u2 "  echo ':WSLInterop:M::MZ::/init:PF' | sudo tee /proc/sys/fs/binfmt_misc/register >/dev/null"
+  fi
   #
   # Forward Windows SSH agent to WSL2 via npiperelay
   export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"

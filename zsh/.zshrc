@@ -118,6 +118,20 @@ if [[ $(grep -i Microsoft /proc/version) ]]; then
     rm -f "$SSH_AUTH_SOCK"
     (setsid socat UNIX-LISTEN:"$SSH_AUTH_SOCK",fork EXEC:"$HOME/.local/bin/npiperelay.exe -ei -s //./pipe/openssh-ssh-agent",nofork &>/dev/null &)
   fi
+
+  # Attach the YubiKey (wsl/AttachYubikey.ps1) whenever it is not in WSL, so a
+  # WSL or Windows restart needs no manual step. In the background, because it
+  # goes through Windows and takes a few seconds, and at most once a minute
+  # however many shells start. The last attempt's output is in the .log.
+  () {
+    local vendors=(/sys/bus/usb/devices/*/idVendor(N))
+    (( ${#vendors} )) && grep -qsx 1050 $vendors && return
+    local last="${XDG_RUNTIME_DIR:-/tmp}/attach-yubikey.last"
+    [[ -e $last && -z $(find "$last" -mmin +1 2>/dev/null) ]] && return
+    touch "$last"
+    (setsid powershell.exe -NoProfile -ExecutionPolicy Bypass \
+      -File "$(wslpath -w "$HOME/.dotfiles/wsl/AttachYubikey.ps1")" &>"${last%.last}.log" &)
+  }
 fi
 
 

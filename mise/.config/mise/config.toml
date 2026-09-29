@@ -115,7 +115,8 @@ restic = "latest"
 "~/.gitconfig-personal"  = { source = "~/.dotfiles/git/.gitconfig-personal" }
 "~/.gitconfig-kvist"     = { source = "~/.dotfiles/git/.gitconfig-kvist" }
 "~/.gitconfig-flowtale"  = { source = "~/.dotfiles/git/.gitconfig-flowtale" }
-"~/.config/git/.gitignore" = { source = "~/.dotfiles/git/.config/git/.gitignore" }
+# Named ignore, which is the file git reads for global excludes.
+"~/.config/git/ignore"   = { source = "~/.dotfiles/git/.config/git/ignore" }
 
 # -- tools whose config directory is theirs alone ---------------------------
 "~/.config/direnv"     = { source = "~/.dotfiles/direnv/.config/direnv" }

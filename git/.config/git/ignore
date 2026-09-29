@@ -1,0 +1,12 @@
+# Global excludes: git reads $XDG_CONFIG_HOME/git/ignore when
+# core.excludesFile is unset. A leading / anchors a pattern to the root of
+# each repository.
+
+# Claude Code's per-machine permission grants.
+**/.claude/settings.local.json
+
+# graft (the code-graph MCP server) indexes a repository into graft/, a local
+# cache that graft build regenerates and says not to commit. The .ignore
+# beside it only re-admits that cache to ripgrep, so it is local as well.
+/graft/
+/.ignore

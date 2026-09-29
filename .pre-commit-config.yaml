@@ -107,6 +107,13 @@ repos:
         pass_filenames: false
         files: ^(scripts/(\.local/bin/agent-sidebar-tmux|tests/test-agent-sidebar-tmux)|tmux/\.tmux\.conf)$
 
+      - id: agent-usage-tap-tests
+        name: agent-usage-tap tests
+        entry: scripts/tests/test-agent-usage-tap
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/agent-usage-tap|tests/test-agent-usage-tap)$
+
       # Builds throwaway repos and worktrees; git-wt-add and the Claude hook
       # both drive the bootstrap, so an edit to any of them re-runs it.
       - id: git-wt-bootstrap-tests

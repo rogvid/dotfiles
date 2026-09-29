@@ -5,6 +5,8 @@
 
 [tools]
 gitleaks = "latest"
+# agent-scan's tests open a real lazygit pane to check it is not an agent.
+lazygit = "latest"
 prek = "latest"
 ruff = "latest"
 shellcheck = "latest"

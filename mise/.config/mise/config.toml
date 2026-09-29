@@ -44,6 +44,11 @@ jq = "latest"
 # `mise x` on a Linux box fails on it, and the error names the yubikey plugin
 # rather than whatever it was actually blocking.
 age-plugin-yubikey = { version = "latest", os = ["macos", "windows"] }
+# So Linux builds it from crates.io instead. pcsc-sys links libpcsclite and its
+# build script panics with "Could not find a PCSC library" without the headers,
+# so it needs apt:libpcsclite-dev from [bootstrap.packages] (applied before
+# [tools]), and pcscd running to reach the key.
+"cargo:age-plugin-yubikey" = { version = "latest", os = ["linux"] }
 just = "latest"
 "github:alexpasmantier/television" = "latest"
 # Explicit backend: newer mise resolves bare `fnox` through packslip, which
@@ -162,6 +167,9 @@ restic = "latest"
 "apt:luarocks" = { os = "linux" } # LazyVim :checkhealth
 "apt:libpcsclite-dev" = { os = "linux" } # PC/SC headers, for YubiKey tools
 "apt:pcscd" = { os = "linux" } # the PC/SC daemon they talk to the YubiKey through
+# pcscd.socket is deliberately not in [bootstrap.services]: the package enables
+# it on install, and a declared service fails closed on a headless host without
+# systemd (containers, WSL with it off), stopping the whole bootstrap there.
 
 # pcscd admits only users in an active local session, and a WSL session has
 # no seat, so polkit never counts it as one: every PC/SC client, the YubiKey

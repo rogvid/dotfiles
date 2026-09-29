@@ -1,6 +1,9 @@
 #!/bin/bash
 #
 alias lg='lazygit'
+# Clone as a git-wt project (.bare plus a worktree per branch), not a plain
+# checkout that needs git-wt convert afterwards.
+alias gclone='git-wt clone'
 alias cat='bat'
 alias ll='eza -lha'
 alias l='eza -l --icons --git -a'

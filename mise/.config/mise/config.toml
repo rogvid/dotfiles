@@ -149,6 +149,9 @@ restic = "latest"
 "~/.codex/AGENTS.md"           = { source = "~/.dotfiles/agents/.agents/AGENTS.md" }
 "~/.config/opencode/AGENTS.md" = { source = "~/.dotfiles/agents/.agents/AGENTS.md" }
 "~/.pi/agent/AGENTS.md"        = { source = "~/.dotfiles/agents/.agents/AGENTS.md" }
+# File-level: ~/.config/agent-sidebar may also hold this machine's accounts
+# file (see agent-sidebar-tmux).
+"~/.config/agent-sidebar/config.toml" = { source = "~/.dotfiles/agent-sidebar/.config/agent-sidebar/config.toml" }
 
 # -- scripts. Each file, not the directory: ~/.local/bin also holds mise,
 #    claude and other installers' binaries. `manifest = "git"` links only

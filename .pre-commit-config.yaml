@@ -84,19 +84,28 @@ repos:
             |scripts/(\.local/bin|tests)/[^/]+
           )$
 
+      # agent-scan, the sidebar and its tmux glue all read their settings
+      # through agent-sidebar-config, so a change to it re-runs theirs too.
+      - id: agent-sidebar-config-tests
+        name: agent-sidebar-config tests
+        entry: scripts/tests/test-agent-sidebar-config
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(\.local/bin/agent-sidebar-config|tests/test-agent-sidebar-config)|agent-sidebar/.*)$
+
       - id: agent-scan-tests
         name: agent-scan classifier tests
         entry: scripts/tests/test-agent-scan
         language: system
         pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-scan|tests/test-agent-scan)$
+        files: ^scripts/(\.local/bin/agent-(scan|sidebar-config)|tests/test-agent-scan)$
 
       - id: agent-sidebar-tests
         name: agent-sidebar app tests
         entry: scripts/tests/test-agent-sidebar
         language: system
         pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-sidebar|tests/test-agent-sidebar)$
+        files: ^scripts/(\.local/bin/agent-sidebar(-config)?|tests/test-agent-sidebar)$
 
       # Runs a throwaway tmux server, with the binding and hooks read out of
       # tmux.conf, so a config edit re-runs it too.
@@ -105,7 +114,7 @@ repos:
         entry: scripts/tests/test-agent-sidebar-tmux
         language: system
         pass_filenames: false
-        files: ^(scripts/(\.local/bin/agent-sidebar-tmux|tests/test-agent-sidebar-tmux)|tmux/\.tmux\.conf)$
+        files: ^(scripts/(\.local/bin/agent-sidebar-(tmux|config)|tests/test-agent-sidebar-tmux)|tmux/\.tmux\.conf)$
 
       - id: agent-usage-tap-tests
         name: agent-usage-tap tests

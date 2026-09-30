@@ -68,6 +68,7 @@ run = [
   "scripts/tests/test-agent-sidebar",
   "scripts/tests/test-agent-sidebar-tmux",
   "scripts/tests/test-agent-usage-tap",
+  "scripts/tests/test-agent-msg",
   "scripts/tests/test-git-wt",
   "scripts/tests/test-git-wt-bootstrap",
   "scripts/tests/test-git-projects",

@@ -123,6 +123,14 @@ repos:
         pass_filenames: false
         files: ^scripts/(\.local/bin/agent-usage-tap|tests/test-agent-usage-tap)$
 
+      # Throwaway tmux server; the real agent-scan decides who is blocked.
+      - id: agent-msg-tests
+        name: agent-msg tests
+        entry: scripts/tests/test-agent-msg
+        language: system
+        pass_filenames: false
+        files: ^scripts/(\.local/bin/agent-(msg|scan)|tests/test-agent-msg)$
+
       # Builds throwaway repos and worktrees; git-wt-add and the Claude hook
       # both drive the bootstrap, so an edit to any of them re-runs it.
       - id: git-wt-bootstrap-tests

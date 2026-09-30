@@ -64,8 +64,16 @@ To change it, message the session working on dotfiles; do not edit it from here.
 - Flag context at `warn`/`rot` and suggest `/clear` or a fresh session when a pane is idle with a big context.
 - Flag `▲` in `flag` (two agents in one working directory) immediately.
 
+## Your inbox
+
+- Other agents answer you with `agent-msg reply`, which only logs; nothing is pasted into this pane.
+- At the start of every turn, run `agent-msg inbox --unread --mark-read`.
+  Put what arrived in front of Rogvi, grouped like a brief, before answering what he said.
+- `agent-msg log --with orchestrator --last 20` shows the recent conversation both ways.
+
 ## Relaying messages
 
+- Send with `agent-msg send PANE "..."`, never raw `tmux send-keys`, so every message is logged and its receiver can reply.
 - Read the pane before writing to it.
 - Never interrupt a `running` pane unless Rogvi says so.
 - Send exactly what Rogvi decided, phrased as an instruction to that agent, and say which pane you sent it to.

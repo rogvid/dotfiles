@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# agent-orchestrator - the orchestrator, one claude session that keeps track
+# of all the other agents, shown in a popup.
+#
+# Usage: agent-orchestrator [COMMAND]
+#
+#   toggle   show the orchestrator in a popup, or close the popup when you
+#            are in it (M-1; the default)
+#   start    create the orchestrator's session if there is none, without
+#            showing it; prints its pane id
+#
+# The orchestrator is claude, in the tmux session "orchestrator". The first
+# toggle or start creates the session with a shell in the orchestrator's
+# home and types claude into it, so the session outlives claude and closing
+# the popup only hides it.
+#
+# It runs on the claude account the setting orchestrator.account names (see
+# agent-sidebar-config, and agent-sidebar-tmux accounts for the names). When
+# this machine has no such account, or the settings file is broken, it says
+# so and starts nothing. Unset, it runs on the account of whatever creates
+# the session: for M-1, the tmux server's own.
+#
+# The home is ~/.local/share/agent-sidebar/orchestrator: a folder of its
+# own, outside every repository, where AGENTS.md and CLAUDE.md are links to
+# the AGENTS.md dotfiles keeps in agents/orchestrator/ (mise bootstrap makes
+# them). A link per file rather than one for the folder, so the pane's
+# working directory does not resolve into dotfiles and neither agent-scan
+# nor claude takes the orchestrator for a dotfiles session.
+
+set -euo pipefail
+
+readonly session="orchestrator"
+# The same path as the [dotfiles] entries in mise's config.toml.
+readonly home="${HOME}/.local/share/agent-sidebar/orchestrator"
+# The settings reader and the accounts list, from beside this script's real
+# path, as agent-sidebar-tmux finds the reader.
+bin="$(dirname "$(realpath "$0")")"
+readonly bin
+
+usage() {
+    sed -n '2,/^$/s/^# \{0,1\}//p' "$0"
+}
+
+# Behind a key binding stderr would open a pane of its own, so a toggle
+# says what went wrong on the status line.
+complain() {
+    if [[ "${command}" == toggle ]]; then
+        tmux display-message -d 5000 "agent-orchestrator: $1"
+    else
+        echo "agent-orchestrator: $1" >&2
+    fi
+}
+
+# The folder of the claude account to run on, in `account`: the one
+# orchestrator.account names, else the caller's, else "" for claude's
+# default. Fails, having said why, when that cannot be known: a broken
+# settings file would otherwise start the orchestrator on the wrong account.
+pick_account() {
+    local name errors
+    errors="$(mktemp)"
+    if ! name="$("${bin}/agent-sidebar-config" get orchestrator.account 2>"${errors}")"; then
+        rm -f "${errors}"
+        complain "cannot read orchestrator.account (agent-sidebar-config)"
+        return 1
+    fi
+    if [[ -s "${errors}" ]]; then
+        rm -f "${errors}"
+        complain "config.toml is broken, see: agent-sidebar-config check"
+        return 1
+    fi
+    rm -f "${errors}"
+    account="${CLAUDE_CONFIG_DIR:-}"
+    if [[ -n "${name}" ]]; then
+        account="$("${bin}/agent-sidebar-tmux" accounts |
+            awk -F '\t' -v n="${name}" '$1 == "claude" && $2 == n { print $3; exit }')"
+        if [[ -z "${account}" ]]; then
+            complain "no claude account ${name} on this machine (orchestrator.account; see: agent-sidebar-tmux accounts)"
+            return 1
+        fi
+    fi
+}
+
+# claude asks whether to trust a folder the first time it starts in one,
+# and Enter answers "No, exit". The home is ours, so it is trusted up front
+# the way claude records a yes itself: projects[FOLDER].hasTrustDialogAccepted
+# in the account's .claude.json. That trusts this one folder on this one
+# account and nothing else. claude re-reads the file before each write, so a
+# claude already running on the account keeps the entry.
+trust_home() {
+    local folder="$1" config key tmp
+    if [[ -n "${folder}" ]]; then
+        config="${folder}/.claude.json"
+    else
+        config="${HOME}/.claude.json"
+    fi
+    # Through a link to the file itself, which the mv below would replace.
+    config="$(realpath -m "${config}")"
+    key="$(realpath "${home}")"
+    if [[ -f "${config}" ]] && jq -e --arg key "${key}" \
+        '.projects[$key].hasTrustDialogAccepted == true' "${config}" >/dev/null 2>&1; then
+        return 0
+    fi
+    mkdir -p "$(dirname "${config}")"
+    # mktemp makes the file 0600, like the one it replaces, and in the same
+    # folder, so the mv is atomic.
+    tmp="$(mktemp "${config}.XXXXXX")"
+    if [[ -s "${config}" ]]; then
+        jq --arg key "${key}" '.projects[$key].hasTrustDialogAccepted = true' \
+            "${config}" >"${tmp}"
+    else
+        jq -n --arg key "${key}" '{projects: {($key): {hasTrustDialogAccepted: true}}}' >"${tmp}"
+    fi && mv "${tmp}" "${config}" || {
+        rm -f "${tmp}"
+        complain "could not mark ${home} trusted in ${config}"
+        return 1
+    }
+}
+
+start() {
+    local pane
+    local -a session_env=()
+    if tmux has-session -t "=${session}" 2>/dev/null; then
+        tmux display-message -p -t "=${session}:" '#{pane_id}'
+        return 0
+    fi
+    if [[ ! -e "${home}/AGENTS.md" ]]; then
+        complain "no ${home}/AGENTS.md - run: mise bootstrap dotfiles apply"
+        return 1
+    fi
+    pick_account || return 1
+    trust_home "${account}" || return 1
+    if [[ -n "${account}" ]]; then
+        session_env=(-e "CLAUDE_CONFIG_DIR=${account}")
+    fi
+    pane="$(tmux new-session -d -P -F '#{pane_id}' -s "${session}" -c "${home}" \
+        "${session_env[@]}")"
+    # Typed into the shell rather than run as the session's command, so the
+    # session outlives claude.
+    tmux send-keys -t "${pane}" -l claude
+    tmux send-keys -t "${pane}" Enter
+    echo "${pane}"
+}
+
+# Whether a client process was started by the tmux server itself, as a
+# popup's nested client is.
+spawned_by_server() {
+    local pid="$1" server_pid _
+    server_pid="$(tmux display-message -p '#{pid}')"
+    for _ in 1 2 3 4; do
+        pid="$(ps -o ppid= -p "${pid}" 2>/dev/null | tr -d ' ')"
+        if [[ -z "${pid}" || "${pid}" -le 1 ]]; then
+            return 1
+        fi
+        if [[ "${pid}" == "${server_pid}" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+toggle() {
+    local current client_pid socket
+    read -r current client_pid < <(tmux display-message -p '#{session_name} #{client_pid}')
+    if [[ "${current}" == "${session}" ]]; then
+        # In the popup, closing it is detaching its client. A terminal that
+        # was switched to the orchestrator goes back where it came from
+        # instead of being detached.
+        if spawned_by_server "${client_pid}"; then
+            tmux detach-client
+        else
+            tmux switch-client -l
+        fi
+        return 0
+    fi
+    start >/dev/null || return 0
+    # The popup's client attaches to this server by its socket: a bare
+    # tmux in there would reach the default one.
+    socket="$(tmux display-message -p '#{socket_path}')"
+    tmux display-popup -xC -yC -w80% -h75% -T ' orchestrator ' -E \
+        "env -u TMUX tmux -S $(printf '%q' "${socket}") attach -t '=${session}'"
+}
+
+command="toggle"
+case "${1:-toggle}" in
+toggle | start) command="${1:-toggle}" ;;
+-h | --help)
+    usage
+    exit 0
+    ;;
+*)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+case "${command}" in
+toggle) toggle ;;
+start) start ;;
+esac

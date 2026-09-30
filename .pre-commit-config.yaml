@@ -116,6 +116,15 @@ repos:
         pass_filenames: false
         files: ^(scripts/(\.local/bin/agent-sidebar-(tmux|config)|tests/test-agent-sidebar-tmux)|tmux/\.tmux\.conf)$
 
+      # Also a throwaway tmux server with M-1 read out of tmux.conf. Accounts
+      # come from agent-sidebar-tmux, so an edit there re-runs it too.
+      - id: agent-orchestrator-tests
+        name: agent-orchestrator tests
+        entry: scripts/tests/test-agent-orchestrator
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(\.local/bin/(agent-orchestrator|agent-sidebar-tmux|agent-sidebar-config)|tests/test-agent-orchestrator)|tmux/\.tmux\.conf)$
+
       - id: agent-usage-tap-tests
         name: agent-usage-tap tests
         entry: scripts/tests/test-agent-usage-tap

@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# End-to-end checks for agent-orchestrator on a throwaway tmux server.
+#
+# M-1 opens a popup on the client you are looking through, so a real client
+# is attached: it runs inside a second throwaway server, and keys are typed
+# into it the way a terminal would. The binding comes straight out of
+# tmux.conf, so the test and the config cannot drift apart.
+#
+# HOME is a scratch folder with the orchestrator's home linked the way
+# mise bootstrap links it and a settings file of its own, and claude is a
+# stand-in that notes where and on which account it was started.
+#
+# Run: scripts/tests/test-agent-orchestrator     (or `mise run test`)
+
+set -euo pipefail
+
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
+readonly repo
+readonly socket="agent-orchestrator-test-$$"
+readonly host="agent-orchestrator-host-$$"
+scratch="$(mktemp -d)"
+readonly scratch
+
+cleanup() {
+    tmux -L "${socket}" kill-server 2>/dev/null || true
+    tmux -L "${host}" kill-server 2>/dev/null || true
+    rm -rf "${scratch}"
+}
+trap cleanup EXIT
+
+grep -F 'agent-orchestrator' "${repo}/tmux/.tmux.conf" >"${scratch}/tmux.conf"
+# Without it a typed M-1 waits half a second to be told apart from Escape.
+echo 'set -g escape-time 0' >>"${scratch}/tmux.conf"
+echo 'set -g default-shell /bin/sh' >>"${scratch}/tmux.conf"
+
+mkdir -p "${scratch}/bin"
+cat >"${scratch}/bin/claude" <<EOF
+#!/bin/sh
+echo "\$(pwd -P) \${CLAUDE_CONFIG_DIR:-default}" >>"${scratch}/started"
+EOF
+chmod +x "${scratch}/bin/"*
+
+t() { tmux -L "${socket}" "$@"; }
+
+# The test server's jobs - the binding - inherit this environment.
+export PATH="${scratch}/bin:${repo}/scripts/.local/bin:${PATH}"
+unset TMUX TMUX_PANE
+# agent-sidebar-config is a uv script. Under the throwaway HOME below, uv
+# would download a Python on its first run, slower than any check waits.
+UV_CACHE_DIR="$(uv cache dir)" UV_PYTHON_INSTALL_DIR="$(uv python dir)"
+export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
+export HOME="${scratch}/home" XDG_CONFIG_HOME="${scratch}/home/.config"
+# An agent running this test would hand its own account on to the session.
+unset CLAUDE_CONFIG_DIR CODEX_HOME PI_CODING_AGENT_DIR
+readonly home="${HOME}/.local/share/agent-sidebar/orchestrator"
+mkdir -p "${home}"
+ln -s "${repo}/agents/orchestrator/AGENTS.md" "${home}/AGENTS.md"
+ln -s "${repo}/agents/orchestrator/AGENTS.md" "${home}/CLAUDE.md"
+
+t -f "${scratch}/tmux.conf" new-session -d -s main -x 160 -y 45
+t new-session -d -s other -x 160 -y 45
+tmux -L "${host}" -f /dev/null new-session -d -s host -x 160 -y 45 \
+    "env -u TMUX tmux -L ${socket} attach -t main"
+
+press() { tmux -L "${host}" send-keys -t host "$@"; }
+
+failures=0
+total=0
+
+# Bindings run in the background, so give the server a moment to settle.
+check() {
+    local name="$1" _
+    shift
+    total=$((total + 1))
+    for _ in $(seq 60); do
+        if "$@" 2>/dev/null; then
+            printf 'ok    %s\n' "${name}"
+            return 0
+        fi
+        sleep 0.05
+    done
+    printf 'FAIL  %s\n' "${name}"
+    failures=$((failures + 1))
+}
+
+not() { ! "$@"; }
+equals() { [[ "$($1)" == "$2" ]]; }
+exists() { [[ -e "$1" ]]; }
+clients() { t list-clients -F '#{session_name}' | sort | tr '\n' ' '; }
+has_session() { t has-session -t "=orchestrator"; }
+started() { cat "${scratch}/started"; }
+started_count() { wc -l <"${scratch}/started"; }
+trusted() {
+    jq -e --arg key "$(realpath "${home}")" \
+        '.projects[$key].hasTrustDialogAccepted == true' "$1" >/dev/null
+}
+mode() { stat -c '%a' "$1"; }
+# Run the way the binding runs it: from inside the server.
+act() {
+    TMUX="$(t display-message -p '#{socket_path},#{pid},0')" agent-orchestrator "$@"
+}
+
+check "client attached" equals clients "main "
+
+press M-1
+check "M-1 creates the orchestrator's session" has_session
+check "in the orchestrator's home, a real folder" equals \
+    "t display-message -p -t =orchestrator: #{pane_current_path}" "${home}"
+check "and starts claude there on the default account" equals started \
+    "$(realpath "${home}") default"
+check "trusting the home on that account first" trusted "${HOME}/.claude.json"
+check "in a .claude.json only its owner can read" equals \
+    "mode ${HOME}/.claude.json" 600
+check "M-1 shows it in a popup" equals clients "main orchestrator "
+
+press M-1
+check "M-1 in the popup closes it" equals clients "main "
+check "and leaves the orchestrator running" has_session
+
+press M-1
+check "M-1 shows it again" equals clients "main orchestrator "
+press M-1
+check "and closes it" equals clients "main "
+check "without starting claude again" equals started_count 1
+
+t switch-client -t =orchestrator
+check "a terminal switched to it" equals clients "orchestrator "
+press M-1
+check "goes back where it came from on M-1" equals clients "main "
+
+# start, without a client, as a script or another agent would.
+t kill-session -t =orchestrator
+rm "${scratch}/started"
+echo '{"numStartups": 7, "projects": {"/elsewhere": {"allowedTools": []}}}' \
+    >"${HOME}/.claude.json"
+chmod 600 "${HOME}/.claude.json"
+pane="$(act start)"
+check "start creates the session and prints its pane" equals \
+    "t display-message -p -t =orchestrator: #{pane_id}" "${pane}"
+check "and shows nothing" equals clients "main "
+check "and starts claude in it" equals started "$(realpath "${home}") default"
+check "trust is added to an existing .claude.json" trusted "${HOME}/.claude.json"
+check "keeping everything else in it" equals \
+    "jq -c [.numStartups,.projects[\"/elsewhere\"]] ${HOME}/.claude.json" '[7,{"allowedTools":[]}]'
+check "start on an existing session prints its pane" equals "act start" "${pane}"
+
+# The account comes from the settings file, as the one agent-sidebar-tmux
+# accounts lists by that name.
+t kill-session -t =orchestrator
+rm "${scratch}/started"
+readonly settings="${XDG_CONFIG_HOME}/agent-sidebar/config.toml"
+mkdir -p "${HOME}/.claude-work" "$(dirname "${settings}")"
+echo '{}' >"${HOME}/.claude-work/.claude.json"
+printf '[orchestrator]\naccount = "work"\n' >"${settings}"
+press M-1
+check "orchestrator.account picks claude's account" equals started \
+    "$(realpath "${home}") ${HOME}/.claude-work"
+check "and the whole session stays on it" equals \
+    "t show-environment -t =orchestrator CLAUDE_CONFIG_DIR" \
+    "CLAUDE_CONFIG_DIR=${HOME}/.claude-work"
+check "trusting the home on that account" trusted "${HOME}/.claude-work/.claude.json"
+press M-1
+check "and M-1 closes it" equals clients "main "
+
+t kill-session -t =orchestrator
+status_line() { tmux -L "${host}" capture-pane -p -t host | grep -qF "$1"; }
+printf '[orchestrator]\naccount = "nope"\n' >"${settings}"
+press M-1
+check "an account this machine lacks: M-1 says so" status_line \
+    "no claude account nope on this machine"
+check "and starts nothing" not has_session
+check "and shows nothing" equals clients "main "
+
+printf '[orchestrator]\naccount = 1\n' >"${settings}"
+check "a broken settings file is refused" not act start
+check "rather than starting on another account" not has_session
+
+rm "${scratch}/started" "${settings}"
+CLAUDE_CONFIG_DIR="${HOME}/.claude-work" act start >/dev/null
+check "unset, it takes the caller's account" equals started \
+    "$(realpath "${home}") ${HOME}/.claude-work"
+
+t kill-session -t =orchestrator
+mv "${home}/AGENTS.md" "${scratch}/AGENTS.md"
+check "a home mise has not linked yet is refused" not act start
+check "and no session is created" not has_session
+mv "${scratch}/AGENTS.md" "${home}/AGENTS.md"
+
+printf '\n%s/%s passed\n' "$((total - failures))" "${total}"
+((failures == 0))

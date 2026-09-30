@@ -152,6 +152,15 @@ restic = "latest"
 # File-level: ~/.config/agent-sidebar may also hold this machine's accounts
 # file (see agent-sidebar-tmux).
 "~/.config/agent-sidebar/config.toml" = { source = "~/.dotfiles/agent-sidebar/.config/agent-sidebar/config.toml" }
+# The orchestrator's home (agent-orchestrator, M-1). File-level so the
+# folder itself is real and outside every repository: were it a link into
+# this repo, its pane's working directory would resolve into dotfiles and
+# agent-scan and the harness would take the orchestrator for a dotfiles
+# session. CLAUDE.md is the same file rather than an `@AGENTS.md` import:
+# claude asks before following an import out of the folder, and Enter
+# answers no. projects.md beside them is the machine's own.
+"~/.local/share/agent-sidebar/orchestrator/AGENTS.md" = { source = "~/.dotfiles/agents/orchestrator/AGENTS.md" }
+"~/.local/share/agent-sidebar/orchestrator/CLAUDE.md" = { source = "~/.dotfiles/agents/orchestrator/AGENTS.md" }
 
 # -- scripts. Each file, not the directory: ~/.local/bin also holds mise,
 #    claude and other installers' binaries. `manifest = "git"` links only

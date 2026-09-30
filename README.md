@@ -31,6 +31,22 @@ The script is safe to re-run, and re-running it is how to move the repo or switc
 The GitHub login matters even though the repo is public: mise reuses the `gh` token, and without it the GitHub-hosted tools exhaust the anonymous API rate limit.
 Clones use https; switch with `git remote set-url origin git@github.com:rogvid/dotfiles.git` once an SSH key is set up for pushing.
 
+### Agents and the orchestrator
+
+`agent-setup` installs the agent tooling dotfiles cannot carry: programs with their own installers and skills fetched from upstream repos.
+Run it once after `mise bootstrap`; `agent-setup --check` shows what it would do.
+Then log in to claude once on each account you use.
+
+In tmux, M-1 shows the orchestrator in a popup and M-1 again hides it.
+It is the claude session that keeps track of all the other agents, with its instructions in `agents/orchestrator/AGENTS.md`.
+The first M-1 creates the tmux session `orchestrator` and starts claude in `~/.local/share/agent-sidebar/orchestrator`, a folder `mise bootstrap` makes with links to those instructions.
+Nothing else needs setting up by hand:
+
+- Claude's "trust this folder?" prompt, whose default answer exits, does not appear: `agent-orchestrator` marks that one folder trusted in the account's `.claude.json` before starting claude.
+- It starts on the claude account `[orchestrator] account` names in `agent-sidebar/.config/agent-sidebar/config.toml`: `personal`, which is `~/.claude-personal` once it holds a login (`CLAUDE_CONFIG_DIR=~/.claude-personal claude`, or the `claudia` alias).
+  On a machine without that account, M-1 says so on the status line and starts nothing; `agent-sidebar-tmux accounts` lists the ones there are.
+- `projects.md` in that folder is the machine's own list of projects and what speech-to-text turns their names into; the orchestrator creates it and keeps it up to date.
+
 ## How it fits together
 
 - **`~/.dotfiles`** is a symlink to the main worktree of wherever the repo was cloned, `<dir>/main`. Every `[dotfiles]` source goes through it, so moving the repo means re-running `ztp.sh --dir <new path>`.

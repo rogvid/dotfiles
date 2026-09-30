@@ -100,12 +100,14 @@ repos:
         pass_filenames: false
         files: ^scripts/(\.local/bin/agent-(scan|sidebar-config)|tests/test-agent-scan)$
 
+      # It also checks the sidebar counts unread messages by agent-msg's
+      # inbox rule, so an edit to agent-msg re-runs it too.
       - id: agent-sidebar-tests
         name: agent-sidebar app tests
         entry: scripts/tests/test-agent-sidebar
         language: system
         pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-sidebar(-config)?|tests/test-agent-sidebar)$
+        files: ^scripts/(\.local/bin/agent-(sidebar(-config)?|msg)|tests/test-agent-sidebar)$
 
       # Runs a throwaway tmux server, with the binding and hooks read out of
       # tmux.conf, so a config edit re-runs it too.

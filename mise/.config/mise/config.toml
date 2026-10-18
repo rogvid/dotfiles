@@ -3,12 +3,20 @@ idiomatic_version_file_enable_tools = ["python"]
 minimum_release_age = "14d"
 experimental = true
 
+[env]
+# terminal-browser sends usage events and crash reports unless told not to.
+TERMINAL_BROWSER_NO_TELEMETRY = "1"
+
 [tools]
 doppler = "latest"
 glow = "latest"
 jj = "latest"
 node = "latest"
 "npm:agent-browser" = "latest"
+# Not npm:terminal-browser, which is an unrelated package. The repo also
+# publishes electron-v* and pixel-v* releases; without the prefix mise lists
+# electron-v44.x as a version of this tool.
+"github:zenbu-labs/terminal-browser" = { version = "latest", version_prefix = "v" }
 prek = "latest"
 terraform = "latest"
 "github:anchore/grype" = "latest"

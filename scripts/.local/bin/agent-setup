@@ -8,7 +8,8 @@
 #   agent-setup            install what is missing
 #   agent-setup --check    report what would change, touch nothing
 #
-# Safe to re-run. Links only the skill adapters Claude Code needs - run
+# Safe to re-run. Links only the skill adapters Claude Code needs and puts agent-usage-tap
+# in front of each Claude Code statusline (agent-sidebar's usage meters) - run
 # `mise bootstrap dotfiles apply` yourself once you are happy with what this reports.
 set -euo pipefail
 
@@ -33,7 +34,7 @@ install_peon_ping() {
     return
   fi
   say "not installed"
-  would "curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash" || return
+  would "curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash" || return 0
   # Its installer owns this directory and registers its own hooks in settings.json.
   # We keep only config.json under version control; packs and state stay local.
   curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
@@ -101,6 +102,50 @@ link_claude_skills() {
   (( changed )) || say "every Claude Code config dir links every pool skill"
 }
 
+# agent-sidebar's usage meters come from agent-usage-tap, which only sees the rate
+# limits when it sits in front of Claude Code's statusline command. settings.json
+# is Claude Code's own (and peon-ping's), so it is edited in place, not linked:
+# only statusLine changes. Profiles that link one settings.json share one edit.
+wire_usage_tap() {
+  head_ "agent-usage-tap -> Claude Code statusline"
+  require_cmd jq
+  local cfg settings real current command updated changed=0
+  local -A seen=()
+  for cfg in "${HOME}/.claude" "${HOME}"/.claude-*/; do
+    cfg="${cfg%/}"
+    [[ -d "$cfg" ]] || continue
+    settings="${cfg}/settings.json"
+    real="$(realpath -m "$settings")"
+    [[ -n "${seen[$real]:-}" ]] && continue
+    seen[$real]=1
+    current="$(cat "$real" 2>/dev/null || echo '{}')"
+    command="$(jq -r '.statusLine.command // ""' <<<"$current" 2>/dev/null)" || {
+      say "skipped  ${settings} - not valid JSON"
+      continue
+    }
+    if [[ "${command%% *}" == "agent-usage-tap" || "${command%% *}" == */agent-usage-tap ]]; then
+      continue
+    fi
+    # The tap execs its arguments, so only a plain command line survives the prefix.
+    if [[ -n "$command" && ! "$command" =~ ^[][A-Za-z0-9_./~=:@%+,\ -]+$ ]]; then
+      say "skipped  ${settings} - put agent-usage-tap in front of its statusLine.command by hand"
+      continue
+    fi
+    if [[ -z "$command" && -e "${cfg}/statusline.sh" ]]; then
+      command="${cfg/#"$HOME"/\~}/statusline.sh"
+    fi
+    changed=1
+    would "statusLine.command in ${settings}: agent-usage-tap ${command}" || continue
+    updated="$(jq --arg command "agent-usage-tap${command:+ }${command}" '
+        .statusLine = ({type: "command", padding: 1, refreshInterval: 10}
+                       + (.statusLine // {}) + {command: $command})' <<<"$current")"
+    mkdir -p "$(dirname "$real")"
+    printf '%s\n' "$updated" >"${real}.partial" && mv -f "${real}.partial" "$real"
+    say "wired    ${settings}"
+  done
+  (( changed )) || say "every Claude Code statusline runs through agent-usage-tap"
+}
+
 report_undeclared() {
   head_ "in the pool but not declared"
   local declared owned
@@ -119,6 +164,7 @@ main() {
   install_peon_ping
   install_skills
   link_claude_skills
+  wire_usage_tap
   report_undeclared
   head_ "next"
   say "mise bootstrap dotfiles apply"

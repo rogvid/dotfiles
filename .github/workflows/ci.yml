@@ -28,6 +28,10 @@ jobs:
           # mise.toml pins the same tools the local hooks use.
           install: true
           cache: true
+      # The orchestrator's tests run as a hook too, and take the accounts
+      # from the agent-sidebar plugin.
+      - name: agent-sidebar plugin
+        run: git clone --depth 1 https://github.com/rogvid/agent-sidebar "$HOME/.tmux/plugins/agent-sidebar"
       - name: Run every hook against every file
         run: prek run --all-files --show-diff-on-failure --color always
 

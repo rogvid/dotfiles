@@ -34,6 +34,7 @@ Clones use https; switch with `git remote set-url origin git@github.com:rogvid/d
 ### Agents and the orchestrator
 
 `agent-setup` installs the agent tooling dotfiles cannot carry: programs with their own installers and skills fetched from upstream repos.
+It also puts `agent-usage-tap` in front of each Claude account's statusline in its `settings.json`, which the agent sidebar's usage meters need.
 Run it once after `mise bootstrap`; `agent-setup --check` shows what it would do.
 Then log in to claude once on each account you use.
 

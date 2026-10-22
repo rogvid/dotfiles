@@ -38,23 +38,7 @@ if [[ -z $selected ]]; then
   exit 0
 fi
 
-# git-wt names a project's sessions and knows its main worktree, which is
-# where the project folder itself opens. Anything else is named after its
-# folder; tmux reads `.` and `:` in a target as window and pane separators.
-if session=$(git-wt session "$selected" 2>/dev/null); then
-  selected_name=${session%%$'\t'*}
-  selected=${session#*$'\t'}
-else
-  selected_name=$(basename "$selected" | tr .: __)
-fi
-
-if ! tmux has-session -t="$selected_name" 2>/dev/null; then
-  tmux new-session -ds "$selected_name" -c "$selected"
-fi
-
-# switch-client needs a client to switch; from a plain shell, attach one.
-if [[ -n $TMUX ]]; then
-  tmux switch-client -t="$selected_name"
-else
-  tmux attach-session -t="$selected_name"
-fi
+# Its session: git-wt's for a git-wt project or worktree, else one named
+# after the folder. The agent-sidebar plugin's, so the sidebar's projects
+# picker and this open a project as one session.
+exec agent-sidebar-tmux open-project "$selected"

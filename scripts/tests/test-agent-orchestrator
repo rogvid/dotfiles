@@ -7,8 +7,9 @@
 # tmux.conf, so the test and the config cannot drift apart.
 #
 # HOME is a scratch folder with the orchestrator's home linked the way
-# mise bootstrap links it and a settings file of its own, and claude is a
-# stand-in that notes where and on which account it was started.
+# mise bootstrap links it, and claude is a stand-in that notes where and on
+# which account it was started. The accounts come from the agent-sidebar
+# plugin's agent-sidebar-tmux: AGENT_SIDEBAR_PLUGIN, else where TPM puts it.
 #
 # Run: scripts/tests/test-agent-orchestrator     (or `mise run test`)
 
@@ -16,6 +17,11 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 readonly repo
+readonly plugin="${AGENT_SIDEBAR_PLUGIN:-${HOME}/.tmux/plugins/agent-sidebar}"
+if [[ ! -x "${plugin}/bin/agent-sidebar-tmux" ]]; then
+    echo "no agent-sidebar plugin at ${plugin}; set AGENT_SIDEBAR_PLUGIN" >&2
+    exit 2
+fi
 readonly socket="agent-orchestrator-test-$$"
 readonly host="agent-orchestrator-host-$$"
 scratch="$(mktemp -d)"
@@ -28,7 +34,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-grep -F 'agent-orchestrator' "${repo}/tmux/.tmux.conf" >"${scratch}/tmux.conf"
+# The binding only: the account tmux.conf sets is this machine's, and the
+# checks below set their own.
+grep -F 'agent-orchestrator toggle' "${repo}/tmux/.tmux.conf" >"${scratch}/tmux.conf"
 # Without it a typed M-1 waits half a second to be told apart from Escape.
 echo 'set -g escape-time 0' >>"${scratch}/tmux.conf"
 echo 'set -g default-shell /bin/sh' >>"${scratch}/tmux.conf"
@@ -43,12 +51,8 @@ chmod +x "${scratch}/bin/"*
 t() { tmux -L "${socket}" "$@"; }
 
 # The test server's jobs - the binding - inherit this environment.
-export PATH="${scratch}/bin:${repo}/scripts/.local/bin:${PATH}"
+export PATH="${scratch}/bin:${repo}/scripts/.local/bin:${plugin}/bin:${PATH}"
 unset TMUX TMUX_PANE
-# agent-sidebar-config is a uv script. Under the throwaway HOME below, uv
-# would download a Python on its first run, slower than any check waits.
-UV_CACHE_DIR="$(uv cache dir)" UV_PYTHON_INSTALL_DIR="$(uv python dir)"
-export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
 export HOME="${scratch}/home" XDG_CONFIG_HOME="${scratch}/home/.config"
 # An agent running this test would hand its own account on to the session.
 unset CLAUDE_CONFIG_DIR CODEX_HOME PI_CODING_AGENT_DIR
@@ -144,16 +148,15 @@ check "keeping everything else in it" equals \
     "jq -c [.numStartups,.projects[\"/elsewhere\"]] ${HOME}/.claude.json" '[7,{"allowedTools":[]}]'
 check "start on an existing session prints its pane" equals "act start" "${pane}"
 
-# The account comes from the settings file, as the one agent-sidebar-tmux
-# accounts lists by that name.
+# The account comes from @agent-orchestrator-account, as the one
+# agent-sidebar-tmux accounts lists by that name.
 t kill-session -t =orchestrator
 rm "${scratch}/started"
-readonly settings="${XDG_CONFIG_HOME}/agent-sidebar/config.toml"
-mkdir -p "${HOME}/.claude-work" "$(dirname "${settings}")"
+mkdir -p "${HOME}/.claude-work"
 echo '{}' >"${HOME}/.claude-work/.claude.json"
-printf '[orchestrator]\naccount = "work"\n' >"${settings}"
+t set -g @agent-orchestrator-account work
 press M-1
-check "orchestrator.account picks claude's account" equals started \
+check "@agent-orchestrator-account picks claude's account" equals started \
     "$(realpath "${home}") ${HOME}/.claude-work"
 check "and the whole session stays on it" equals \
     "t show-environment -t =orchestrator CLAUDE_CONFIG_DIR" \
@@ -164,18 +167,18 @@ check "and M-1 closes it" equals clients "main "
 
 t kill-session -t =orchestrator
 status_line() { tmux -L "${host}" capture-pane -p -t host | grep -qF "$1"; }
-printf '[orchestrator]\naccount = "nope"\n' >"${settings}"
+t set -g @agent-orchestrator-account nope
 press M-1
 check "an account this machine lacks: M-1 says so" status_line \
     "no claude account nope on this machine"
 check "and starts nothing" not has_session
 check "and shows nothing" equals clients "main "
 
-printf '[orchestrator]\naccount = 1\n' >"${settings}"
-check "a broken settings file is refused" not act start
+check "nor does start" not act start
 check "rather than starting on another account" not has_session
 
-rm "${scratch}/started" "${settings}"
+rm "${scratch}/started"
+t set -gu @agent-orchestrator-account
 CLAUDE_CONFIG_DIR="${HOME}/.claude-work" act start >/dev/null
 check "unset, it takes the caller's account" equals started \
     "$(realpath "${home}") ${HOME}/.claude-work"

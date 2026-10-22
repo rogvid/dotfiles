@@ -14,11 +14,14 @@
 # home and types claude into it, so the session outlives claude and closing
 # the popup only hides it.
 #
-# It runs on the claude account the setting orchestrator.account names (see
-# agent-sidebar-config, and agent-sidebar-tmux accounts for the names). When
-# this machine has no such account, or the settings file is broken, it says
-# so and starts nothing. Unset, it runs on the account of whatever creates
-# the session: for M-1, the tmux server's own.
+# It runs on the claude account the tmux option @agent-orchestrator-account
+# names (agent-sidebar-tmux accounts lists the names; tmux.conf sets it).
+# When this machine has no such account, it says so and starts nothing.
+# Unset, it runs on the account of whatever creates the session: for M-1,
+# the tmux server's own.
+#
+# agent-sidebar-tmux comes from the agent-sidebar tmux plugin, which puts
+# it on the tmux server's PATH.
 #
 # The home is ~/.local/share/agent-sidebar/orchestrator: a folder of its
 # own, outside every repository, where AGENTS.md and CLAUDE.md are links to
@@ -32,10 +35,6 @@ set -euo pipefail
 readonly session="orchestrator"
 # The same path as the [dotfiles] entries in mise's config.toml.
 readonly home="${HOME}/.local/share/agent-sidebar/orchestrator"
-# The settings reader and the accounts list, from beside this script's real
-# path, as agent-sidebar-tmux finds the reader.
-bin="$(dirname "$(realpath "$0")")"
-readonly bin
 
 usage() {
     sed -n '2,/^$/s/^# \{0,1\}//p' "$0"
@@ -52,31 +51,23 @@ complain() {
 }
 
 # The folder of the claude account to run on, in `account`: the one
-# orchestrator.account names, else the caller's, else "" for claude's
-# default. Fails, having said why, when that cannot be known: a broken
-# settings file would otherwise start the orchestrator on the wrong account.
+# @agent-orchestrator-account names, else the caller's, else "" for claude's
+# default. Fails, having said why, when the named one is not here: starting
+# on another account instead would be worse than not starting.
 pick_account() {
-    local name errors
-    errors="$(mktemp)"
-    if ! name="$("${bin}/agent-sidebar-config" get orchestrator.account 2>"${errors}")"; then
-        rm -f "${errors}"
-        complain "cannot read orchestrator.account (agent-sidebar-config)"
-        return 1
-    fi
-    if [[ -s "${errors}" ]]; then
-        rm -f "${errors}"
-        complain "config.toml is broken, see: agent-sidebar-config check"
-        return 1
-    fi
-    rm -f "${errors}"
+    local name
+    name="$(tmux show-options -gqv @agent-orchestrator-account)"
     account="${CLAUDE_CONFIG_DIR:-}"
-    if [[ -n "${name}" ]]; then
-        account="$("${bin}/agent-sidebar-tmux" accounts |
-            awk -F '\t' -v n="${name}" '$1 == "claude" && $2 == n { print $3; exit }')"
-        if [[ -z "${account}" ]]; then
-            complain "no claude account ${name} on this machine (orchestrator.account; see: agent-sidebar-tmux accounts)"
-            return 1
-        fi
+    [[ -n "${name}" ]] || return 0
+    if ! command -v agent-sidebar-tmux >/dev/null; then
+        complain "@agent-orchestrator-account needs agent-sidebar-tmux, from the agent-sidebar tmux plugin"
+        return 1
+    fi
+    account="$(agent-sidebar-tmux accounts |
+        awk -F '\t' -v n="${name}" '$1 == "claude" && $2 == n { print $3; exit }')"
+    if [[ -z "${account}" ]]; then
+        complain "no claude account ${name} on this machine (@agent-orchestrator-account; see: agent-sidebar-tmux accounts)"
+        return 1
     fi
 }
 

@@ -84,88 +84,14 @@ repos:
             |scripts/(\.local/bin|tests)/[^/]+
           )$
 
-      # agent-scan, the sidebar and its tmux glue all read their settings
-      # through agent-sidebar-config, so a change to it re-runs theirs too.
-      - id: agent-sidebar-config-tests
-        name: agent-sidebar-config tests
-        entry: scripts/tests/test-agent-sidebar-config
-        language: system
-        pass_filenames: false
-        files: ^(scripts/(\.local/bin/agent-sidebar-config|tests/test-agent-sidebar-config)|agent-sidebar/.*)$
-
-      - id: agent-scan-tests
-        name: agent-scan classifier tests
-        entry: scripts/tests/test-agent-scan
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-(scan|sidebar-config)|tests/test-agent-scan)$
-
-      # It also checks the sidebar counts unread messages by agent-msg's
-      # inbox rule, so an edit to agent-msg re-runs it too.
-      - id: agent-sidebar-tests
-        name: agent-sidebar app tests
-        entry: scripts/tests/test-agent-sidebar
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-(sidebar(-config)?|msg)|tests/test-agent-sidebar)$
-
-      # Runs a throwaway tmux server, with the binding and hooks read out of
-      # tmux.conf, so a config edit re-runs it too.
-      - id: agent-sidebar-tmux-tests
-        name: agent-sidebar tmux tests
-        entry: scripts/tests/test-agent-sidebar-tmux
-        language: system
-        pass_filenames: false
-        files: ^(scripts/(\.local/bin/agent-sidebar-(tmux|config)|tests/test-agent-sidebar-tmux)|tmux/\.tmux\.conf)$
-
-      # Also a throwaway tmux server with M-1 read out of tmux.conf. Accounts
-      # come from agent-sidebar-tmux, so an edit there re-runs it too.
+      # A throwaway tmux server with M-1 read out of tmux.conf. Accounts come
+      # from the agent-sidebar plugin's agent-sidebar-tmux, which TPM installs.
       - id: agent-orchestrator-tests
         name: agent-orchestrator tests
         entry: scripts/tests/test-agent-orchestrator
         language: system
         pass_filenames: false
-        files: ^(scripts/(\.local/bin/(agent-orchestrator|agent-sidebar-tmux|agent-sidebar-config)|tests/test-agent-orchestrator)|tmux/\.tmux\.conf)$
-
-      - id: agent-usage-tap-tests
-        name: agent-usage-tap tests
-        entry: scripts/tests/test-agent-usage-tap
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-usage-tap|tests/test-agent-usage-tap)$
-
-      # Throwaway tmux server; the real agent-scan decides who is blocked.
-      - id: agent-msg-tests
-        name: agent-msg tests
-        entry: scripts/tests/test-agent-msg
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-(msg|scan)|tests/test-agent-msg)$
-
-      # Builds throwaway repos and worktrees; git-wt-add and the Claude hook
-      # both drive the bootstrap, so an edit to any of them re-runs it.
-      - id: git-wt-bootstrap-tests
-        name: git-wt bootstrap tests
-        entry: scripts/tests/test-git-wt-bootstrap
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/(git-wt.*|claude-worktree-create)|tests/test-git-wt-bootstrap)$
-
-      # Every git-wt command end to end on throwaway repos, including each bug
-      # the audit of the old bash scripts reproduced.
-      - id: git-wt-tests
-        name: git-wt tests
-        entry: scripts/tests/test-git-wt
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/(git-wt.*|claude-worktree-create)|tests/test-git-wt)$
-
-      - id: git-projects-tests
-        name: git-projects tests
-        entry: scripts/tests/test-git-projects
-        language: system
-        pass_filenames: false
-        files: ^scripts/(\.local/bin/git-projects|tests/test-git-projects)$
+        files: ^(scripts/(\.local/bin/agent-orchestrator|tests/test-agent-orchestrator)|tmux/\.tmux\.conf)$
 
       # Throwaway HOME with curl and npx stubbed out, so it never installs anything.
       - id: agent-setup-tests

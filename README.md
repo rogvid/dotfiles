@@ -34,7 +34,8 @@ Clones use https; switch with `git remote set-url origin git@github.com:rogvid/d
 ### Agents and the orchestrator
 
 `agent-setup` installs the agent tooling dotfiles cannot carry: programs with their own installers and skills fetched from upstream repos.
-It also puts `agent-usage-tap` in front of each Claude account's statusline in its `settings.json`, which the agent sidebar's usage meters need.
+It installs TPM and the tmux plugins `.tmux.conf` lists, among them [agent-sidebar](https://github.com/rogvid/agent-sidebar): the sidebar on M-2, `agent-scan`, `agent-msg` and `git-wt`.
+Then it runs the plugin's own `agent-sidebar-setup`, which links its skill and television channels and puts `agent-usage-tap` in front of each Claude account's statusline.
 Run it once after `mise bootstrap`; `agent-setup --check` shows what it would do.
 Then log in to claude once on each account you use.
 
@@ -44,7 +45,7 @@ The first M-1 creates the tmux session `orchestrator` and starts claude in `~/.l
 Nothing else needs setting up by hand:
 
 - Claude's "trust this folder?" prompt, whose default answer exits, does not appear: `agent-orchestrator` marks that one folder trusted in the account's `.claude.json` before starting claude.
-- It starts on the claude account `[orchestrator] account` names in `agent-sidebar/.config/agent-sidebar/config.toml`: `personal`, which is `~/.claude-personal` once it holds a login (`CLAUDE_CONFIG_DIR=~/.claude-personal claude`, or the `claudia` alias).
+- It starts on the claude account the tmux option `@agent-orchestrator-account` names in `.tmux.conf`: `personal`, which is `~/.claude-personal` once it holds a login (`CLAUDE_CONFIG_DIR=~/.claude-personal claude`, or the `claudia` alias).
   On a machine without that account, M-1 says so on the status line and starts nothing; `agent-sidebar-tmux accounts` lists the ones there are.
 - `projects.md` in that folder is the machine's own list of projects and what speech-to-text turns their names into; the orchestrator creates it and keeps it up to date.
 
@@ -69,6 +70,7 @@ Every managed path is a symlink into this repo, so editing a config anywhere is 
 | Add an OS package or service | Add it to `[bootstrap.packages]` or `[bootstrap.services]`, then `mise bootstrap --only packages,services` |
 | Upgrade tools | `mise upgrade` - Obsidian is pinned (see the comment in `config.desktop.toml`), so bump its version by hand |
 | Bring a machine up to date | `git -C ~/.dotfiles pull`, then `mise bootstrap` |
+| Work on agent-sidebar | Replace `~/.tmux/plugins/agent-sidebar` with a link to its checkout (`ln -sfn <checkout>/main ~/.tmux/plugins/agent-sidebar`), then `tmux source ~/.tmux.conf` |
 
 A desktop app also needs a launcher: copy one of the templates in `desktop/` and add a `mode = "template"` entry to `[dotfiles]` in `config.desktop.toml`.
 

@@ -131,7 +131,8 @@ main_branch() {
 
 main_worktree() { printf '%s/%s' "$1" "$(slug "$(main_branch "$1")")"; }
 
-# git-wt ships with the repo, so an old plain clone converts itself.
+# An old plain clone converts with git-wt, which comes from the
+# agent-sidebar plugin: fetched here, since tmux has not installed it yet.
 convert_checkout() {
   local dir=$1
   # ~/.dotfiles has to become the link to the project's main worktree.
@@ -140,8 +141,14 @@ convert_checkout() {
   fi
   confirm "$dir is a plain clone. Convert it to the project layout with git-wt?" y ||
     die "$dir must be a project; convert it with: git-wt convert $dir"
+  local git_wt
+  git_wt=$(mktemp -d)/git-wt
+  curl -fsSL https://raw.githubusercontent.com/rogvid/agent-sidebar/main/bin/git-wt -o "$git_wt" ||
+    die "could not fetch git-wt from github.com/rogvid/agent-sidebar"
+  chmod +x "$git_wt"
   # From /, so mise reads no project config it has not been told to trust.
-  (cd / && mise x uv@latest -- "$dir/scripts/.local/bin/git-wt" convert --force "$dir")
+  (cd / && mise x uv@latest -- "$git_wt" convert --force "$dir")
+  rm -rf "$(dirname "$git_wt")"
 }
 
 clone_repo() {
@@ -153,7 +160,7 @@ clone_repo() {
   elif [[ -e $dir && -n $(ls -A "$dir" 2>/dev/null) ]]; then
     die "$dir exists and is not a git checkout"
   else
-    # What `git-wt clone` does; git-wt itself arrives with this clone.
+    # What `git-wt clone` does, without git-wt, which tmux installs later.
     say "Cloning $repo to $dir"
     mkdir -p "$dir"
     git init --quiet --bare "$dir/.bare"

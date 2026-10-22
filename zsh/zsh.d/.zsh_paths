@@ -11,3 +11,6 @@ ${HOME}/.nvm
 
 # Opencode
 ${HOME}/.opencode/bin
+
+# agent-sidebar (tmux plugin): git-wt, agent-scan and the rest, outside tmux too
+${HOME}/.tmux/plugins/agent-sidebar/bin

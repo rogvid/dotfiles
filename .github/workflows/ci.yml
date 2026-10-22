@@ -60,8 +60,11 @@ jobs:
           install: true
           cache: true
           cache_save: false
-      # The sidebar's end-to-end test drives a real tmux server.
+      # The orchestrator's end-to-end test drives a real tmux server, and
+      # takes the accounts from the agent-sidebar plugin.
       - name: Install tmux
         run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: agent-sidebar plugin
+        run: git clone --depth 1 https://github.com/rogvid/agent-sidebar "$HOME/.tmux/plugins/agent-sidebar"
       - name: agent tools
         run: mise run test

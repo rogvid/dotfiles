@@ -2,6 +2,7 @@
 idiomatic_version_file_enable_tools = ["python"]
 minimum_release_age = "14d"
 experimental = true
+auto_update = true
 
 [env]
 # terminal-browser sends usage events and crash reports unless told not to.

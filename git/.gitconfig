@@ -1,6 +1,6 @@
 [user]
   name = "Rogvi David Arge"
-  email = "rda@flowtale.ai"
+  email = "rogvidarge@gmail.com"
 [includeif "gitdir:~/**/work/flowtale/"]
   path = ~/.gitconfig-flowtale
 [includeif "gitdir:~/**/work/kvist/"]

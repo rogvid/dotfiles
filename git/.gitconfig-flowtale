@@ -1,5 +1,0 @@
-[user]
-  email = rda@flowtale.ai
-  name = Rogvi David Arge
-[core]
-  sshCommand = ssh -i ~/.ssh/id_ed25519_flowtale

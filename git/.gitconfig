@@ -1,8 +1,6 @@
 [user]
   name = "Rogvi David Arge"
   email = "rogvidarge@gmail.com"
-[includeif "gitdir:~/**/work/flowtale/"]
-  path = ~/.gitconfig-flowtale
 [includeif "gitdir:~/**/work/kvist/"]
   path = ~/.gitconfig-kvist
 [includeif "gitdir:~/**/personal/"]

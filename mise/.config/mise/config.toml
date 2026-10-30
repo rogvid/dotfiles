@@ -124,7 +124,6 @@ restic = "latest"
 "~/.gitconfig"           = { source = "~/.dotfiles/git/.gitconfig" }
 "~/.gitconfig-personal"  = { source = "~/.dotfiles/git/.gitconfig-personal" }
 "~/.gitconfig-kvist"     = { source = "~/.dotfiles/git/.gitconfig-kvist" }
-"~/.gitconfig-flowtale"  = { source = "~/.dotfiles/git/.gitconfig-flowtale" }
 # Named ignore, which is the file git reads for global excludes.
 "~/.config/git/ignore"   = { source = "~/.dotfiles/git/.config/git/ignore" }
 

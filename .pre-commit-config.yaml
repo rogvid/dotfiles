@@ -101,14 +101,6 @@ repos:
         pass_filenames: false
         files: ^scripts/(\.local/bin/agent-setup|tests/test-agent-setup)$
 
-      # Throwaway HOME with tmux, mise and agent-setup stubbed out.
-      - id: switch-to-personal-accounts-tests
-        name: switch-to-personal-accounts tests
-        entry: scripts/tests/test-switch-to-personal-accounts
-        language: system
-        pass_filenames: false
-        files: ^scripts/(migrations/switch-to-personal-accounts|tests/test-switch-to-personal-accounts)$
-
       # A stand-in opencode that runs tmux, against a stand-in user server.
       - id: opencode-free-tests
         name: opencode-free tests

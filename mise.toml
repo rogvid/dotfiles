@@ -64,4 +64,5 @@ run = [
   "scripts/tests/test-agent-orchestrator",
   "scripts/tests/test-agent-setup",
   "scripts/tests/test-opencode-free",
+  "scripts/tests/test-switch-to-personal-accounts",
 ]

@@ -54,6 +54,7 @@ Nothing else needs setting up by hand:
 The plain commands and their default config dirs are the personal accounts: `claude` on `~/.claude`, `codex` on `~/.codex`, `pi` on `~/.pi/agent`.
 Any other subscription, a work one say, is the exception: it gets a config dir and an alias of its own.
 Name the dir `~/.claude-NAME`, `~/.codex-NAME` or `~/.pi-NAME/agent`, because `agent-setup`, `agent-sidebar-tmux accounts` and the sidebar find accounts by that pattern.
+Agents get here through the `add-agent-account` skill in `agents/.agents/skills`, so keep the two in step.
 
 For a claude account named `acme`:
 

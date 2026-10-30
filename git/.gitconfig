@@ -7,6 +7,14 @@
   path = ~/.gitconfig-personal
 [credential]
   helper = store
+# GitHub over https logs in through gh (gh auth setup-git). The empty helper
+# drops store, which comes first, for these hosts only.
+[credential "https://github.com"]
+  helper =
+  helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+  helper =
+  helper = !gh auth git-credential
 [init]
   defaultBranch = main
 [alias]

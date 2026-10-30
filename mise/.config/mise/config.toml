@@ -138,15 +138,13 @@ restic = "latest"
 # LazyVim starter. lazy-lock.json is written here but ignored by git.
 "~/.config/nvim"       = { source = "~/.dotfiles/nvim/.config/nvim" }
 
-# -- agent configs. ~/.claude is written by Claude Code itself, so the two
-#    files this repo owns are linked individually rather than the directory. -
+# -- agent configs. The default config dirs are the personal accounts; a
+#    work account adds its own entries here (README: "Adding an agent
+#    account"). ~/.claude is written by Claude Code itself and holds
+#    .credentials.json, history.jsonl, backups/ and cache/, so the files this
+#    repo owns are linked individually: linking the directory would destroy
+#    the credentials. ---------------------------------------------------------
 "~/.agents"                        = { source = "~/.dotfiles/agents/.agents" }
-# Also file-level, and for a sharper reason: ~/.claude-personal holds
-# .credentials.json, history.jsonl, backups/ and cache/ written by Claude
-# Code. Linking the directory would destroy the credentials.
-"~/.claude-personal/CLAUDE.md"     = { source = "~/.dotfiles/agents/.claude/CLAUDE.md" }
-"~/.claude-personal/agents"        = { source = "~/.dotfiles/agents/.claude/agents" }
-"~/.claude-personal/statusline.sh" = { source = "~/.dotfiles/agents/.claude/statusline.sh" }
 "~/.claude/CLAUDE.md"              = { source = "~/.dotfiles/agents/.claude/CLAUDE.md" }
 "~/.claude/statusline.sh"          = { source = "~/.dotfiles/agents/.claude/statusline.sh" }
 # The directory, not the four files inside it. A file-level entry whose

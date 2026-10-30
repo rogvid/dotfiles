@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end checks for agent-setup's Claude Code skill links, on a throwaway
 # HOME laid out like the real one: a skill pool in ~/.agents/skills and two
-# Claude Code config dirs, ~/.claude and a ~/.claude-personal profile.
+# Claude Code config dirs, ~/.claude and a ~/.claude-work account.
 #
 # curl and npx are stubs that fail loudly, so nothing here reaches the network:
 # peon-ping is already "installed" and the manifest declares no skills.
@@ -52,8 +52,8 @@ git -C "${DOTFILES}" add agents/.agents/skills/agent-sidebar
 
 # ~/.claude already has one link, a skill of its own named like a pool skill,
 # a link to a pool skill since removed, and an unrelated broken link.
-readonly claude="${HOME}/.claude/skills" personal="${HOME}/.claude-personal/skills"
-mkdir -p "${claude}/synced" "${claude}/grilling" "${personal}/synced"
+readonly claude="${HOME}/.claude/skills" work="${HOME}/.claude-work/skills"
+mkdir -p "${claude}/synced" "${claude}/grilling" "${work}/synced"
 ln -s ../../.agents/skills/agent-sidebar "${claude}/agent-sidebar"
 ln -s ../../.agents/skills/gone "${claude}/gone"
 ln -s /nowhere/else "${claude}/elsewhere"
@@ -93,25 +93,25 @@ links_to_pool() { [[ -L "$1" && "$(readlink -f "$1")" == "$(readlink -f "${pool}
 contains() { [[ "$1" == *"$2"* ]]; }
 
 out="$(agent-setup --check 2>&1)"
-check "--check reports the missing link" contains "${out}" "would: link ${personal}/agent-sidebar"
+check "--check reports the missing link" contains "${out}" "would: link ${work}/agent-sidebar"
 check "--check reports the dangling link" contains "${out}" "would: remove dangling ${claude}/gone"
-check "--check links nothing" not test -e "${personal}/agent-sidebar"
+check "--check links nothing" not test -e "${work}/agent-sidebar"
 check "--check removes nothing" test -L "${claude}/gone"
 check "--check installs no tmux plugins" not grep -q "tpm install" "${scratch}/plugin-runs"
 check "--check runs the plugin's setup with --check" same "$(cat "${scratch}/plugin-runs")" "plugin setup --check"
 
 out="$(agent-setup 2>&1)"
-check "a profile config dir gets every pool skill" links_to_pool "${personal}/agent-sidebar" agent-sidebar
-check "and the other one" links_to_pool "${personal}/grilling" grilling
+check "an account's config dir gets every pool skill" links_to_pool "${work}/agent-sidebar" agent-sidebar
+check "and the other one" links_to_pool "${work}/grilling" grilling
 check "the links are relative, like npx skills makes them" \
-    same "$(readlink "${personal}/grilling")" ../../.agents/skills/grilling
+    same "$(readlink "${work}/grilling")" ../../.agents/skills/grilling
 check "the default config dir keeps its existing link" links_to_pool "${claude}/agent-sidebar" agent-sidebar
-check "a dir without SKILL.md is not linked" not test -e "${personal}/not-a-skill"
+check "a dir without SKILL.md is not linked" not test -e "${work}/not-a-skill"
 check "a skill Claude Code owns is not replaced" same "$(cat "${claude}/grilling/SKILL.md")" own
 check "and the run says why it was skipped" contains "${out}" "skipped  ${claude}/grilling - not a symlink"
 check "a link to a removed pool skill is pruned" not test -L "${claude}/gone"
 check "an unrelated broken link is left alone" test -L "${claude}/elsewhere"
-check "Claude Code's synced dir is left alone" test -d "${personal}/synced"
+check "Claude Code's synced dir is left alone" test -d "${work}/synced"
 
 check "a run installs the tmux plugins first" same "$(tail -2 "${scratch}/plugin-runs" | head -1)" "tpm install"
 check "then runs the plugin's setup" same "$(tail -1 "${scratch}/plugin-runs")" "plugin setup "

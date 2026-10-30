@@ -45,9 +45,46 @@ The first M-1 creates the tmux session `orchestrator` and starts claude in `~/.l
 Nothing else needs setting up by hand:
 
 - Claude's "trust this folder?" prompt, whose default answer exits, does not appear: `agent-orchestrator` marks that one folder trusted in the account's `.claude.json` before starting claude.
-- It starts on the claude account the tmux option `@agent-orchestrator-account` names in `.tmux.conf`: `personal`, which is `~/.claude-personal` once it holds a login (`CLAUDE_CONFIG_DIR=~/.claude-personal claude`, or the `claudia` alias).
-  On a machine without that account, M-1 says so on the status line and starts nothing; `agent-sidebar-tmux accounts` lists the ones there are.
+- It starts on the default claude account, `~/.claude`, unless the tmux option `@agent-orchestrator-account` names another (see [Adding an agent account](#adding-an-agent-account)).
+  On a machine without the named account, M-1 says so on the status line and starts nothing; `agent-sidebar-tmux accounts` lists the ones there are.
 - `projects.md` in that folder is the machine's own list of projects and what speech-to-text turns their names into; the orchestrator creates it and keeps it up to date.
+
+### Adding an agent account
+
+The plain commands and their default config dirs are the personal accounts: `claude` on `~/.claude`, `codex` on `~/.codex`, `pi` on `~/.pi/agent`.
+Any other subscription, a work one say, is the exception: it gets a config dir and an alias of its own.
+Name the dir `~/.claude-NAME`, `~/.codex-NAME` or `~/.pi-NAME/agent`, because `agent-setup`, `agent-sidebar-tmux accounts` and the sidebar find accounts by that pattern.
+
+For a claude account named `acme`:
+
+1. **Alias**, in `zsh/zsh.d/.zsh_aliases`:
+
+   ```zsh
+   alias claude-acme='CLAUDE_CONFIG_DIR=~/.claude-acme claude'
+   ```
+
+   For codex it is `CODEX_HOME=~/.codex-acme codex`, for pi `PI_CODING_AGENT_DIR=~/.pi-acme/agent pi`.
+2. **Shared files**, as `[dotfiles]` entries in `mise/.config/mise/config.toml` next to the `~/.claude` ones, then `mise bootstrap dotfiles apply`.
+   Link each file, never the dir: it will hold the account's credentials.
+
+   ```toml
+   "~/.claude-acme/CLAUDE.md"     = { source = "~/.dotfiles/agents/.claude/CLAUDE.md" }
+   "~/.claude-acme/agents"        = { source = "~/.dotfiles/agents/.claude/agents" }
+   "~/.claude-acme/statusline.sh" = { source = "~/.dotfiles/agents/.claude/statusline.sh" }
+   ```
+
+   codex and pi need only their `AGENTS.md`, at `~/.codex-acme/AGENTS.md` or `~/.pi-acme/agent/AGENTS.md`, from `~/.dotfiles/agents/.agents/AGENTS.md`.
+3. **Settings**: `ln -s ~/.claude/settings.json ~/.claude-acme/settings.json`, so the account differs from the personal one only in its login.
+   `settings.json` is not in this repo, so this link is made by hand.
+4. **Skills and statusline**: run `agent-setup`.
+   It links every skill in `~/.agents/skills` into each `~/.claude-*` (codex and pi read that folder themselves), and its `agent-sidebar-setup` step links the agent-sidebar skill and puts `agent-usage-tap` in front of the statusline.
+   Neither needs changing for a new account: `scripts/tests/test-agent-setup` covers a `~/.claude-work` one.
+   Only a dir outside the naming pattern would need `agent-setup`, its test and `~/.config/agent-sidebar/accounts` extended.
+5. **Login**: run `claude-acme` and `/login`.
+   `agent-sidebar-tmux accounts` lists the account from then on, as `claude acme ~/.claude-acme`; it looks for `.claude.json` (codex: `auth.json`, pi: `agent/auth.json`).
+6. **Orchestrator**, only if it should run on this account rather than the personal one: `set -g @agent-orchestrator-account 'acme'` in `tmux/.tmux.conf`, re-source tmux, and restart the `orchestrator` session.
+
+To remove an account, delete its alias, its `[dotfiles]` entries and its config dir, and unset `@agent-orchestrator-account` if it names it.
 
 ## How it fits together
 

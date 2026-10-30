@@ -66,7 +66,7 @@ install_skills() {
 }
 
 # Every harness but Claude Code reads ~/.agents/skills natively. Claude Code reads
-# only its config dir, and each CLAUDE_CONFIG_DIR profile (~/.claude-*) is its own,
+# only its config dir, and each CLAUDE_CONFIG_DIR account (~/.claude-*) is its own,
 # so every one gets a link per pool skill. Links into the pool whose skill is gone
 # are pruned; anything else in there belongs to Claude Code and is left alone.
 link_claude_skills() {

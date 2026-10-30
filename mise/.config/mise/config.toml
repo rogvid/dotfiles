@@ -81,6 +81,7 @@ tree-sitter = "latest"   # install-nvim.sh also apt-installed this for LazyVim's
 rust = "latest"          # was install-rust.sh (curl | sh from rustup.rs)
 yt-dlp = "latest"        # was install-yt-dlp.sh
 opencode = "latest"      # was install-opencode.sh
+codex = "latest"
 container-use = "latest" # was install-container-use.sh
 restic = "latest"
 "github:danielmiessler/fabric" = "latest"

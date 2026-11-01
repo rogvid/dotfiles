@@ -5,7 +5,8 @@
 # Usage: agent-orchestrator [COMMAND]
 #
 #   toggle   show the orchestrator in a popup, or close the popup when you
-#            are in it (M-1; the default)
+#            are in it (M-1; the default). In another popup, such as M-3's,
+#            it takes that one's place rather than open inside it.
 #   start    create the orchestrator's session if there is none, without
 #            showing it; prints its pane id
 #
@@ -95,16 +96,18 @@ trust_home() {
     # mktemp makes the file 0600, like the one it replaces, and in the same
     # folder, so the mv is atomic.
     tmp="$(mktemp "${config}.XXXXXX")"
-    if [[ -s "${config}" ]]; then
-        jq --arg key "${key}" '.projects[$key].hasTrustDialogAccepted = true' \
-            "${config}" >"${tmp}"
-    else
-        jq -n --arg key "${key}" '{projects: {($key): {hasTrustDialogAccepted: true}}}' >"${tmp}"
-    fi && mv "${tmp}" "${config}" || {
+    if ! {
+        if [[ -s "${config}" ]]; then
+            jq --arg key "${key}" '.projects[$key].hasTrustDialogAccepted = true' \
+                "${config}" >"${tmp}"
+        else
+            jq -n --arg key "${key}" '{projects: {($key): {hasTrustDialogAccepted: true}}}' >"${tmp}"
+        fi && mv "${tmp}" "${config}"
+    }; then
         rm -f "${tmp}"
         complain "could not mark ${home} trusted in ${config}"
         return 1
-    }
+    fi
 }
 
 start() {
@@ -167,7 +170,7 @@ toggle() {
     # The popup's client attaches to this server by its socket: a bare
     # tmux in there would reach the default one.
     socket="$(tmux display-message -p '#{socket_path}')"
-    tmux display-popup -xC -yC -w80% -h75% -T ' orchestrator ' -E \
+    tmux-popup -xC -yC -w80% -h75% -T ' orchestrator ' -E \
         "env -u TMUX tmux -S $(printf '%q' "${socket}") attach -t '=${session}'"
 }
 

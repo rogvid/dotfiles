@@ -3,8 +3,9 @@
 #
 # M-1 opens a popup on the client you are looking through, so a real client
 # is attached: it runs inside a second throwaway server, and keys are typed
-# into it the way a terminal would. The binding comes straight out of
-# tmux.conf, so the test and the config cannot drift apart.
+# into it the way a terminal would. The bindings, M-1 and M-3's scratch
+# popup, come straight out of tmux.conf, so the test and the config cannot
+# drift apart.
 #
 # HOME is a scratch folder with the orchestrator's home linked the way
 # mise bootstrap links it, and claude is a stand-in that notes where and on
@@ -34,9 +35,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The binding only: the account tmux.conf sets is this machine's, and the
+# The bindings only: the account tmux.conf sets is this machine's, and the
 # checks below set their own.
-grep -F 'agent-orchestrator toggle' "${repo}/tmux/.tmux.conf" >"${scratch}/tmux.conf"
+grep -E "^bind-key -n M-[13] " "${repo}/tmux/.tmux.conf" >"${scratch}/tmux.conf"
 # Without it a typed M-1 waits half a second to be told apart from Escape.
 echo 'set -g escape-time 0' >>"${scratch}/tmux.conf"
 echo 'set -g default-shell /bin/sh' >>"${scratch}/tmux.conf"
@@ -131,6 +132,26 @@ t switch-client -t =orchestrator
 check "a terminal switched to it" equals clients "orchestrator "
 press M-1
 check "goes back where it came from on M-1" equals clients "main "
+
+# M-1 and M-3 take each other's place instead of opening a popup in a popup.
+press M-1
+check "M-1 shows the orchestrator" equals clients "main orchestrator "
+press M-3
+check "M-3 in the orchestrator's popup swaps it for the scratch popup" equals \
+    clients "main popup "
+check "which starts in the terminal's folder, not the orchestrator's" equals \
+    "t display-message -p -t =popup: #{pane_current_path}" \
+    "$(t display-message -p -t =main: '#{pane_current_path}')"
+press M-1
+check "M-1 in the scratch popup swaps it for the orchestrator" equals \
+    clients "main orchestrator "
+press M-1
+check "which M-1 still closes" equals clients "main "
+press M-3
+check "M-3 shows the scratch popup" equals clients "main popup "
+press M-3
+check "and M-3 in it closes it" equals clients "main "
+check "leaving its session" t has-session -t =popup
 
 # start, without a client, as a script or another agent would.
 t kill-session -t =orchestrator

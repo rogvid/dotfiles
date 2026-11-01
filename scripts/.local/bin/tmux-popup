@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# tmux-popup - display-popup that never opens a popup inside another.
+#
+# Usage: tmux-popup [DISPLAY-POPUP OPTIONS] [SHELL-COMMAND]
+#
+# Takes display-popup's options and command, except -c and -t, which it
+# picks itself. Run from a key binding in a terminal, it opens the popup
+# there, as display-popup would. Run from the tmux client of a popup that
+# shows a session, as M-1's and M-3's do, it closes that popup and opens
+# this one in its place, on the terminal around it.
+#
+# The terminal around a popup is the client a key was last typed into: a
+# popup's client gets its keys through that terminal's client, so of the
+# clients tmux did not start itself, that one has the latest activity.
+
+set -euo pipefail
+
+# Whether a client process was started by the tmux server itself, as a
+# popup's nested client is.
+spawned_by_server() {
+    local pid="$1" server_pid _
+    server_pid="$(tmux display-message -p '#{pid}')"
+    for _ in 1 2 3 4; do
+        pid="$(ps -o ppid= -p "${pid}" 2>/dev/null | tr -d ' ')"
+        if [[ -z "${pid}" || "${pid}" -le 1 ]]; then
+            return 1
+        fi
+        if [[ "${pid}" == "${server_pid}" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# The terminal client around the current popup.
+outer_client() {
+    local _ name pid
+    while read -r _ name pid; do
+        if ! spawned_by_server "${pid}"; then
+            echo "${name}"
+            return 0
+        fi
+    done < <(tmux list-clients -F '#{client_activity} #{client_name} #{client_pid}' | sort -rn)
+    return 1
+}
+
+client="$(tmux display-message -p '#{client_name}')"
+if spawned_by_server "$(tmux display-message -p '#{client_pid}')"; then
+    if ! client="$(outer_client)"; then
+        tmux display-message "tmux-popup: no terminal around this popup"
+        exit 1
+    fi
+    tmux display-popup -C -c "${client}"
+fi
+# The terminal's own pane, so formats such as -d '#{pane_current_path}'
+# are its and not the closed popup's.
+pane="$(tmux list-clients -F '#{client_name} #{pane_id}' |
+    awk -v client="${client}" '$1 == client { print $2 }')"
+tmux display-popup -c "${client}" -t "${pane}" "$@"

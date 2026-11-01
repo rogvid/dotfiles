@@ -152,6 +152,9 @@ check "M-3 shows the scratch popup" equals clients "main popup "
 press M-3
 check "and M-3 in it closes it" equals clients "main "
 check "leaving its session" t has-session -t =popup
+# A binding that fails shows its status in a pane, in view mode.
+in_mode() { t list-panes -a -F '#{pane_in_mode}' | grep -qx 1; }
+check "with no binding failing on the way" not in_mode
 
 # start, without a client, as a script or another agent would.
 t kill-session -t =orchestrator

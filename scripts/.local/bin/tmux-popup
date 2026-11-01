@@ -56,4 +56,8 @@ fi
 # are its and not the closed popup's.
 pane="$(tmux list-clients -F '#{client_name} #{pane_id}' |
     awk -v client="${client}" '$1 == client { print $2 }')"
-tmux display-popup -c "${client}" -t "${pane}" "$@"
+# display-popup waits for the popup to close, then exits with its command's
+# status: 129 when a later tmux-popup closed it to take its place, which
+# the key binding running this would report as a failure. So it is left to
+# wait in the background, without the binding's output to hold open.
+tmux display-popup -c "${client}" -t "${pane}" "$@" </dev/null >/dev/null 2>&1 &

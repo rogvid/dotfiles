@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# agent-orchestrator - the orchestrator, one claude session that keeps track
-# of all the other agents, shown in a popup.
+# agent-orchestrator - Hugin, Rogvi's desk: one claude session that keeps
+# track of all the other agents, shown in a popup.
 #
 # Usage: agent-orchestrator [COMMAND]
 #
-#   toggle   show the orchestrator in a popup, or close the popup when you
+#   toggle   show Hugin in a popup, or close the popup when you
 #            are in it (M-1; the default). In another popup, such as M-3's,
 #            it takes that one's place rather than open inside it.
-#   start    create the orchestrator's session if there is none, without
+#   start    create Hugin's session if there is none, without
 #            showing it; prints its pane id
 #
-# The orchestrator is claude, in the tmux session "orchestrator". The first
-# toggle or start creates the session with a shell in the orchestrator's
-# home and types claude into it, so the session outlives claude and closing
-# the popup only hides it.
+# Hugin is `claude --agent hugin`, in the tmux session "hugin". The first
+# toggle or start creates the session with a shell in Hugin's home and types
+# the command into it, so the session outlives claude and closing the popup
+# only hides it.
 #
 # It runs on the claude account the tmux option @agent-orchestrator-account
 # names (agent-sidebar-tmux accounts lists the names; tmux.conf sets it).
@@ -24,18 +24,14 @@
 # agent-sidebar-tmux comes from the agent-sidebar tmux plugin, which puts
 # it on the tmux server's PATH.
 #
-# The home is ~/.local/share/agent-sidebar/orchestrator: a folder of its
-# own, outside every repository, where AGENTS.md and CLAUDE.md are links to
-# the AGENTS.md dotfiles keeps in agents/orchestrator/ (mise bootstrap makes
-# them). A link per file rather than one for the folder, so the pane's
-# working directory does not resolve into dotfiles and neither agent-scan
-# nor claude takes the orchestrator for a dotfiles session.
+# The home is the main worktree of the hugin repo (rogvid/hugin), cloned
+# with git-wt to ~/personal/projects/hugin. Its .claude/agents/hugin.md is
+# Hugin's identity, and agent-scan shows the session as project hugin.
 
 set -euo pipefail
 
-readonly session="orchestrator"
-# The same path as the [dotfiles] entries in mise's config.toml.
-readonly home="${HOME}/.local/share/agent-sidebar/orchestrator"
+readonly session="hugin"
+readonly home="${HUGIN_HOME:-${HOME}/personal/projects/hugin/main}"
 
 usage() {
     sed -n '2,/^$/s/^# \{0,1\}//p' "$0"
@@ -117,8 +113,8 @@ start() {
         tmux display-message -p -t "=${session}:" '#{pane_id}'
         return 0
     fi
-    if [[ ! -e "${home}/AGENTS.md" ]]; then
-        complain "no ${home}/AGENTS.md - run: mise bootstrap dotfiles apply"
+    if [[ ! -e "${home}/.claude/agents/hugin.md" ]]; then
+        complain "no Hugin at ${home} - run: git-wt clone git@github.com:rogvid/hugin.git ~/personal/projects/hugin"
         return 1
     fi
     pick_account || return 1
@@ -130,7 +126,7 @@ start() {
         "${session_env[@]}")"
     # Typed into the shell rather than run as the session's command, so the
     # session outlives claude.
-    tmux send-keys -t "${pane}" -l claude
+    tmux send-keys -t "${pane}" -l "claude --agent hugin"
     tmux send-keys -t "${pane}" Enter
     echo "${pane}"
 }
@@ -157,7 +153,7 @@ toggle() {
     read -r current client_pid < <(tmux display-message -p '#{session_name} #{client_pid}')
     if [[ "${current}" == "${session}" ]]; then
         # In the popup, closing it is detaching its client. A terminal that
-        # was switched to the orchestrator goes back where it came from
+        # was switched to Hugin goes back where it came from
         # instead of being detached.
         if spawned_by_server "${client_pid}"; then
             tmux detach-client
@@ -170,7 +166,7 @@ toggle() {
     # The popup's client attaches to this server by its socket: a bare
     # tmux in there would reach the default one.
     socket="$(tmux display-message -p '#{socket_path}')"
-    tmux-popup -xC -yC -w80% -h75% -T ' orchestrator ' -E \
+    tmux-popup -xC -yC -w80% -h75% -T ' hugin ' -E \
         "env -u TMUX tmux -S $(printf '%q' "${socket}") attach -t '=${session}'"
 }
 

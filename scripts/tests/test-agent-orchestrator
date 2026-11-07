@@ -7,7 +7,7 @@
 # popup, come straight out of tmux.conf, so the test and the config cannot
 # drift apart.
 #
-# HOME is a scratch folder with the orchestrator's home linked the way
+# HOME is a scratch folder with Hugin's home linked the way
 # mise bootstrap links it, and claude is a stand-in that notes where and on
 # which account it was started. The accounts come from the agent-sidebar
 # plugin's agent-sidebar-tmux: AGENT_SIDEBAR_PLUGIN, else where TPM puts it.
@@ -46,6 +46,7 @@ mkdir -p "${scratch}/bin"
 cat >"${scratch}/bin/claude" <<EOF
 #!/bin/sh
 echo "\$(pwd -P) \${CLAUDE_CONFIG_DIR:-default}" >>"${scratch}/started"
+echo "\$*" >>"${scratch}/args"
 EOF
 chmod +x "${scratch}/bin/"*
 
@@ -57,10 +58,10 @@ unset TMUX TMUX_PANE
 export HOME="${scratch}/home" XDG_CONFIG_HOME="${scratch}/home/.config"
 # An agent running this test would hand its own account on to the session.
 unset CLAUDE_CONFIG_DIR CODEX_HOME PI_CODING_AGENT_DIR
-readonly home="${HOME}/.local/share/agent-sidebar/orchestrator"
-mkdir -p "${home}"
-ln -s "${repo}/agents/orchestrator/AGENTS.md" "${home}/AGENTS.md"
-ln -s "${repo}/agents/orchestrator/AGENTS.md" "${home}/CLAUDE.md"
+# Hugin's home: the hugin repo's main worktree, with its agent definition.
+readonly home="${HOME}/personal/projects/hugin/main"
+mkdir -p "${home}/.claude/agents"
+echo '---' >"${home}/.claude/agents/hugin.md"
 
 t -f "${scratch}/tmux.conf" new-session -d -s main -x 160 -y 45
 t new-session -d -s other -x 160 -y 45
@@ -92,7 +93,7 @@ not() { ! "$@"; }
 equals() { [[ "$($1)" == "$2" ]]; }
 exists() { [[ -e "$1" ]]; }
 clients() { t list-clients -F '#{session_name}' | sort | tr '\n' ' '; }
-has_session() { t has-session -t "=orchestrator"; }
+has_session() { t has-session -t "=hugin"; }
 started() { cat "${scratch}/started"; }
 started_count() { wc -l <"${scratch}/started"; }
 trusted() {
@@ -108,43 +109,44 @@ act() {
 check "client attached" equals clients "main "
 
 press M-1
-check "M-1 creates the orchestrator's session" has_session
-check "in the orchestrator's home, a real folder" equals \
-    "t display-message -p -t =orchestrator: #{pane_current_path}" "${home}"
+check "M-1 creates Hugin's session" has_session
+check "in Hugin's home, a real folder" equals \
+    "t display-message -p -t =hugin: #{pane_current_path}" "${home}"
 check "and starts claude there on the default account" equals started \
     "$(realpath "${home}") default"
+check "as Hugin" equals "cat ${scratch}/args" "--agent hugin"
 check "trusting the home on that account first" trusted "${HOME}/.claude.json"
 check "in a .claude.json only its owner can read" equals \
     "mode ${HOME}/.claude.json" 600
-check "M-1 shows it in a popup" equals clients "main orchestrator "
+check "M-1 shows it in a popup" equals clients "hugin main "
 
 press M-1
 check "M-1 in the popup closes it" equals clients "main "
-check "and leaves the orchestrator running" has_session
+check "and leaves Hugin running" has_session
 
 press M-1
-check "M-1 shows it again" equals clients "main orchestrator "
+check "M-1 shows it again" equals clients "hugin main "
 press M-1
 check "and closes it" equals clients "main "
 check "without starting claude again" equals started_count 1
 
-t switch-client -t =orchestrator
-check "a terminal switched to it" equals clients "orchestrator "
+t switch-client -t =hugin
+check "a terminal switched to it" equals clients "hugin "
 press M-1
 check "goes back where it came from on M-1" equals clients "main "
 
 # M-1 and M-3 take each other's place instead of opening a popup in a popup.
 press M-1
-check "M-1 shows the orchestrator" equals clients "main orchestrator "
+check "M-1 shows Hugin" equals clients "hugin main "
 press M-3
-check "M-3 in the orchestrator's popup swaps it for the scratch popup" equals \
+check "M-3 in Hugin's popup swaps it for the scratch popup" equals \
     clients "main popup "
-check "which starts in the terminal's folder, not the orchestrator's" equals \
+check "which starts in the terminal's folder, not Hugin's" equals \
     "t display-message -p -t =popup: #{pane_current_path}" \
     "$(t display-message -p -t =main: '#{pane_current_path}')"
 press M-1
-check "M-1 in the scratch popup swaps it for the orchestrator" equals \
-    clients "main orchestrator "
+check "M-1 in the scratch popup swaps it for Hugin" equals \
+    clients "hugin main "
 press M-1
 check "which M-1 still closes" equals clients "main "
 press M-3
@@ -157,14 +159,14 @@ in_mode() { t list-panes -a -F '#{pane_in_mode}' | grep -qx 1; }
 check "with no binding failing on the way" not in_mode
 
 # start, without a client, as a script or another agent would.
-t kill-session -t =orchestrator
+t kill-session -t =hugin
 rm "${scratch}/started"
 echo '{"numStartups": 7, "projects": {"/elsewhere": {"allowedTools": []}}}' \
     >"${HOME}/.claude.json"
 chmod 600 "${HOME}/.claude.json"
 pane="$(act start)"
 check "start creates the session and prints its pane" equals \
-    "t display-message -p -t =orchestrator: #{pane_id}" "${pane}"
+    "t display-message -p -t =hugin: #{pane_id}" "${pane}"
 check "and shows nothing" equals clients "main "
 check "and starts claude in it" equals started "$(realpath "${home}") default"
 check "trust is added to an existing .claude.json" trusted "${HOME}/.claude.json"
@@ -174,7 +176,7 @@ check "start on an existing session prints its pane" equals "act start" "${pane}
 
 # The account comes from @agent-orchestrator-account, as the one
 # agent-sidebar-tmux accounts lists by that name.
-t kill-session -t =orchestrator
+t kill-session -t =hugin
 rm "${scratch}/started"
 mkdir -p "${HOME}/.claude-work"
 echo '{}' >"${HOME}/.claude-work/.claude.json"
@@ -183,13 +185,13 @@ press M-1
 check "@agent-orchestrator-account picks claude's account" equals started \
     "$(realpath "${home}") ${HOME}/.claude-work"
 check "and the whole session stays on it" equals \
-    "t show-environment -t =orchestrator CLAUDE_CONFIG_DIR" \
+    "t show-environment -t =hugin CLAUDE_CONFIG_DIR" \
     "CLAUDE_CONFIG_DIR=${HOME}/.claude-work"
 check "trusting the home on that account" trusted "${HOME}/.claude-work/.claude.json"
 press M-1
 check "and M-1 closes it" equals clients "main "
 
-t kill-session -t =orchestrator
+t kill-session -t =hugin
 status_line() { tmux -L "${host}" capture-pane -p -t host | grep -qF "$1"; }
 t set -g @agent-orchestrator-account nope
 press M-1
@@ -207,11 +209,11 @@ CLAUDE_CONFIG_DIR="${HOME}/.claude-work" act start >/dev/null
 check "unset, it takes the caller's account" equals started \
     "$(realpath "${home}") ${HOME}/.claude-work"
 
-t kill-session -t =orchestrator
-mv "${home}/AGENTS.md" "${scratch}/AGENTS.md"
-check "a home mise has not linked yet is refused" not act start
+t kill-session -t =hugin
+mv "${home}/.claude/agents/hugin.md" "${scratch}/hugin.md"
+check "a home without Hugin's repo is refused" not act start
 check "and no session is created" not has_session
-mv "${scratch}/AGENTS.md" "${home}/AGENTS.md"
+mv "${scratch}/hugin.md" "${home}/.claude/agents/hugin.md"
 
 printf '\n%s/%s passed\n' "$((total - failures))" "${total}"
 ((failures == 0))

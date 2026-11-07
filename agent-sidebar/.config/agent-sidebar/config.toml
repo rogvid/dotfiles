@@ -15,8 +15,8 @@
 # agent-scan --json and its table still list them, marked hidden. Shell
 # globs match too.
 # hide = []
-# The orchestrator has its own popup (M-1).
-hide = ["orchestrator"]
+# Hugin has its own popup (M-1).
+hide = ["hugin"]
 
 # The harnesses the new-worktree dialog offers.
 # harnesses = ["claude", "codex", "opencode", "pi"]

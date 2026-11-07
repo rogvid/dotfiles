@@ -31,7 +31,7 @@ The script is safe to re-run, and re-running it is how to move the repo or switc
 The GitHub login matters even though the repo is public: mise reuses the `gh` token, and without it the GitHub-hosted tools exhaust the anonymous API rate limit.
 Clones use https; switch with `git remote set-url origin git@github.com:rogvid/dotfiles.git` once an SSH key is set up for pushing.
 
-### Agents and the orchestrator
+### Agents and Hugin
 
 `agent-setup` installs the agent tooling dotfiles cannot carry: programs with their own installers and skills fetched from upstream repos.
 It installs TPM and the tmux plugins `.tmux.conf` lists, among them [agent-sidebar](https://github.com/rogvid/agent-sidebar): the sidebar on M-2, `agent-scan`, `agent-msg` and `git-wt`.
@@ -39,15 +39,16 @@ Then it runs the plugin's own `agent-sidebar-setup`, which links its skill and t
 Run it once after `mise bootstrap`; `agent-setup --check` shows what it would do.
 Then log in to claude once on each account you use.
 
-In tmux, M-1 shows the orchestrator in a popup and M-1 again hides it.
-It is the claude session that keeps track of all the other agents, with its instructions in `agents/orchestrator/AGENTS.md`.
-The first M-1 creates the tmux session `orchestrator` and starts claude in `~/.local/share/agent-sidebar/orchestrator`, a folder `mise bootstrap` makes with links to those instructions.
+In tmux, M-1 shows Hugin in a popup and M-1 again hides it.
+Hugin is Rogvi's desk: the claude session that keeps track of all the other agents, defined in its own private repo, [rogvid/hugin](https://github.com/rogvid/hugin).
+Clone it once with `git-wt clone git@github.com:rogvid/hugin.git ~/personal/projects/hugin`.
+The first M-1 creates the tmux session `hugin` and starts `claude --agent hugin` in that repo's main worktree.
 Nothing else needs setting up by hand:
 
 - Claude's "trust this folder?" prompt, whose default answer exits, does not appear: `agent-orchestrator` marks that one folder trusted in the account's `.claude.json` before starting claude.
 - It starts on the default claude account, `~/.claude`, unless the tmux option `@agent-orchestrator-account` names another (see [Adding an agent account](#adding-an-agent-account)).
   On a machine without the named account, M-1 says so on the status line and starts nothing; `agent-sidebar-tmux accounts` lists the ones there are.
-- `projects.md` in that folder is the machine's own list of projects and what speech-to-text turns their names into; the orchestrator creates it and keeps it up to date.
+- Without the hugin repo, M-1 says how to clone it and starts nothing.
 
 ### Adding an agent account
 
@@ -83,7 +84,7 @@ For a claude account named `acme`:
    Only a dir outside the naming pattern would need `agent-setup`, its test and `~/.config/agent-sidebar/accounts` extended.
 5. **Login**: run `claude-acme` and `/login`.
    `agent-sidebar-tmux accounts` lists the account from then on, as `claude acme ~/.claude-acme`; it looks for `.claude.json` (codex: `auth.json`, pi: `agent/auth.json`).
-6. **Orchestrator**, only if it should run on this account rather than the personal one: `set -g @agent-orchestrator-account 'acme'` in `tmux/.tmux.conf`, re-source tmux, and restart the `orchestrator` session.
+6. **Orchestrator**, only if it should run on this account rather than the personal one: `set -g @agent-orchestrator-account 'acme'` in `tmux/.tmux.conf`, re-source tmux, and restart the `hugin` session.
 
 To remove an account, delete its alias, its `[dotfiles]` entries and its config dir, and unset `@agent-orchestrator-account` if it names it.
 

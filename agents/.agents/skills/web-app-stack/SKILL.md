@@ -42,7 +42,7 @@ Whatever the stack, the deploy, Sentry and operations decisions below still appl
 | Config and secrets | Compose file and `app.env` live in the provisioning repo; secrets in its sops files, never in the app repo | [deploy.md](references/deploy.md) |
 | Data | Files under `data/`, a database dump hook, nightly restic off-site | [deploy.md](references/deploy.md) |
 | Errors and traces | Sentry org `kvist-nt` (EU), one project per runtime, strict privacy settings, verified by a test | [sentry.md](references/sentry.md) |
-| Uptime | Gatus at home on Proxmox, checks in the provisioning repo (planned, not built yet) | [operations.md](references/operations.md) |
+| Uptime | Gatus on the home VM `mon`, one checks file per app in the provisioning repo, alerts to the phone through ntfy | [operations.md](references/operations.md) |
 | Host jobs | Healthchecks.io heartbeats, already on every host | [operations.md](references/operations.md) |
 
 ## Order of work for a new app

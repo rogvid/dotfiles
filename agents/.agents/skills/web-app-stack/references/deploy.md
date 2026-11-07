@@ -23,7 +23,7 @@ Why it works this way: `docs/reviews/2026-11-06-webhost.md` and ADRs 0001 to 000
 In the provisioning repo, from `docs/runbooks/webhost.md`:
 
 1. **DNS**: an A record (and AAAA if the VPS has IPv6) for the app's domain.
-2. **Host layer**: `mise run app:new <app> <domain>`, then edit the block it appends:
+2. **Host layer**: `mise run app:new <app> <domain>` (`--health-path` if the health endpoint is not `/api/health`), then edit the block it appends and the uptime checks it writes ([operations.md](operations.md)):
    - the healthcheck command and the app's health path ([stack.md](stack.md));
    - a Postgres `db` service and its dump hook, if the app has a database;
    - `data/` mounts for files the app keeps;

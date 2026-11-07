@@ -103,6 +103,8 @@ Thumbs.db
 !/agents/.agents/skills/agent-orchestrator/**
 !/agents/.agents/skills/add-agent-account/
 !/agents/.agents/skills/add-agent-account/**
+!/agents/.agents/skills/web-app-stack/
+!/agents/.agents/skills/web-app-stack/**
 /agents/.agents/.skill-lock.json
 /television/.config/television/cable/*
 !/television/.config/television/cable/dirs.toml

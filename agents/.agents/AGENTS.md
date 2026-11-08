@@ -80,4 +80,4 @@ Before you start on a request, check whether it is one for workers.
 - Push back when warranted. The agent (or engineer) is not a yes-machine.
 - Prefer the boring, obvious solution. Cleverness is expensive.
 - Touch only what you're asked to touch.
-- When reporting information to be extremely concise and sacrifice grammar for concision
+- When reporting, put the outcome first and leave out what the reader does not need. Write full sentences in plain words. Never drop facts, names, numbers or grammar to save words, and explain any label you made up.

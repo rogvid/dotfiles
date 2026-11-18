@@ -39,6 +39,9 @@ Options after -- go to \`mise bootstrap\`, e.g. -- --skip packages,services
 Profiles:
   desktop   everything, plus kanata, Obsidian, LocalSend, restic units, at/atd
   headless  the terminal environment only - for WSL, servers and containers
+
+Either profile also gets earlyoom (the oomguard env) when systemd runs as
+PID 1, as on WSL with systemd on and on a physical desktop.
 EOF
 }
 
@@ -75,6 +78,10 @@ expand_home() { printf '%s' "${1/#\~/$HOME}"; }
 is_wsl() {
   [[ -n ${WSL_DISTRO_NAME:-} ]] || grep -qi microsoft /proc/version 2>/dev/null
 }
+
+# systemd runs as PID 1: the test sd_booted(3) uses. Containers and WSL with
+# systemd off fail it.
+has_systemd() { [[ -d /run/systemd/system ]]; }
 
 ensure_git() {
   command -v git >/dev/null && return
@@ -222,7 +229,7 @@ repoint_old_links() {
 back_up_mise_config() {
   local f stamp
   stamp=$(date +%Y%m%d%H%M%S)
-  for f in "$MISE_DIR/config.toml" "$MISE_DIR/config.desktop.toml"; do
+  for f in "$MISE_DIR/config.toml" "$MISE_DIR/config.desktop.toml" "$MISE_DIR/config.oomguard.toml"; do
     [[ -e $f && ! -L $f ]] || continue
     confirm "$f is not managed by this repo. Move it to $f.ztp-$stamp?" y ||
       die "cannot link $f while it exists"
@@ -230,18 +237,27 @@ back_up_mise_config() {
   done
 }
 
+# The mise envs a profile loads, comma-separated as MISE_ENV takes them:
+# desktop for the desktop profile, and oomguard (earlyoom) wherever systemd
+# runs, since its service step fails closed without it.
+profile_envs() {
+  local -a names=()
+  [[ $1 == desktop ]] && names+=(desktop)
+  has_systemd && names+=(oomguard)
+  local IFS=,
+  printf '%s' "${names[*]}"
+}
+
+# write_profile <profile> <envs>
 write_profile() {
-  local profile=$1
+  local profile=$1 envs=$2 list=""
   mkdir -p "$MISE_DIR"
   [[ -L $MISE_DIR/miserc.toml ]] && rm "$MISE_DIR/miserc.toml"
-  say "Recording profile '$profile' in $MISE_DIR/miserc.toml"
+  say "Recording profile '$profile' (envs: ${envs:-none}) in $MISE_DIR/miserc.toml"
+  [[ -n $envs ]] && list="\"${envs//,/\", \"}\""
   {
     echo "# Written by ztp.sh: this machine's profile. Re-run ztp.sh to change it."
-    if [[ $profile == desktop ]]; then
-      echo 'env = ["desktop"]'
-    else
-      echo 'env = []'
-    fi
+    echo "env = [$list]"
   } >"$MISE_DIR/miserc.toml"
 }
 
@@ -281,10 +297,9 @@ main() {
   clone_repo "$dir" "$repo"
   link_repo "$dir"
   back_up_mise_config
-  write_profile "$profile"
-
-  local env=""
-  [[ $profile == desktop ]] && env=desktop
+  local env
+  env=$(profile_envs "$profile")
+  write_profile "$profile" "$env"
   repoint_old_links "$env"
 
   # The global config does not exist until the dotfiles step links it, so this
@@ -309,4 +324,6 @@ main() {
     "cd ~/.dotfiles && mise run drift" "check the machine still matches the repo"
 }
 
-main "$@"
+# Sourced, as scripts/tests/test-ztp does, it only defines the functions.
+# `return` fails outside a sourced file, `curl | bash` included.
+(return 0 2>/dev/null) || main "$@"

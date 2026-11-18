@@ -1,0 +1,60 @@
+# Early out-of-memory killing, loaded by the `oomguard` env. ztp.sh adds it
+# to ~/.config/mise/miserc.toml wherever systemd runs as PID 1: WSL with
+# systemd on and physical desktops. Containers and boxes without systemd do not
+# get it, because a declared service fails closed there and stops the bootstrap.
+#
+# Why: on 18 November 2026 WSL froze from full memory twice and nothing killed
+# the hog. The kernel OOM killer only acts once swap is gone, by which time
+# the machine has thrashed for minutes. earlyoom acts first.
+
+[bootstrap.packages]
+"apt:earlyoom" = { os = "linux" }
+
+# The settings go in a drop-in rather than /etc/default/earlyoom, which is the
+# package's conffile: replacing it would make every package upgrade ask about
+# it. pre-packages, so the very first start after install already uses them.
+[bootstrap.directories."/etc/systemd/system/earlyoom.service.d"]
+owner = "root"
+group = "root"
+mode = "0755"
+phase = "pre-packages"
+os = "linux"
+
+# Thresholds, for 15.6 GiB RAM and 4 GiB swap on a WSL vhdx:
+# -m 10,5   SIGTERM at 10% (1.6 GiB) available, SIGKILL at 5%. earlyoom's
+#           default; idle use is 9-10 GB, so only a runaway reaches it.
+# -s 50,25  earlyoom acts only when both memory and swap are under their limit.
+#           The default of 10% waits too long: on 11 November 2026 the kernel
+#           logged "Free swap = 8kB" at 18:41:20 but its OOM kill of chrome
+#           (10.9 GB anon RSS) came only at 18:44:58, more than three minutes
+#           of thrashing. Half the swap used plus 10% RAM left is already
+#           thrashing on a swap file that lives on the Windows disk.
+# -r 3600   one memory report an hour, the package default.
+# --prefer  headless Chrome from agent-browser: every one of its processes,
+#           gpu-process and renderers too, is named `chrome`; the crash
+#           handler (chrome_crashpad) is not matched.
+# --avoid   init and WSL's init-systemd(Ub..., systemd and its daemons, sshd,
+#           Docker, tailscaled, the agent harnesses and tmux, whose processes
+#           are named "tmux: server" and "tmux: client".
+# The regexes hold no spaces or quotes: systemd splits ExecStart at whitespace
+# and passes quotes through literally. `$` is not expanded in ExecStart unless
+# it starts a variable name, and `$|` and a trailing `$` do not.
+[bootstrap.files."/etc/systemd/system/earlyoom.service.d/10-dotfiles.conf"]
+owner = "root"
+group = "root"
+mode = "0644"
+phase = "pre-packages"
+os = "linux"
+notify = ["earlyoom"]
+content = '''
+[Service]
+ExecStart=
+ExecStart=/usr/bin/earlyoom -r 3600 -m 10,5 -s 50,25 --prefer ^chrome$ --avoid ^(init.*|systemd.*|sshd|dockerd|containerd|tailscaled|claude|codex)$|^tmux:
+'''
+
+# The package enables and starts it; declaring it restarts it when the drop-in
+# changes and keeps it enabled.
+[bootstrap.services.earlyoom]
+state = "running"
+enabled = true
+on_change = "restart"

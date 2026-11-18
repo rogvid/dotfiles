@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Checks for ztp.sh's profile handling: which mise envs each profile records
+# in miserc.toml, with and without systemd, and that a re-run is stable.
+#
+# Run: scripts/tests/test-ztp     (or `mise run test`)
+
+set -euo pipefail
+
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
+readonly repo
+scratch="$(mktemp -d)"
+readonly scratch
+trap 'rm -rf "${scratch}"' EXIT
+
+# shellcheck source=../../ztp.sh
+source "${repo}/ztp.sh"
+set +e
+# Read by the sourced functions: where miserc.toml goes, and no prompts.
+MISE_DIR="${scratch}/mise"
+# shellcheck disable=SC2034
+YES=1
+say() { :; }
+
+failures=0
+total=0
+check() {
+    local name="$1"
+    shift
+    total=$((total + 1))
+    if "$@" 2>/dev/null; then
+        printf 'ok    %s\n' "${name}"
+    else
+        printf 'FAIL  %s\n' "${name}"
+        failures=$((failures + 1))
+    fi
+}
+same() { [[ "$1" == "$2" ]]; }
+recorded() {
+    python3 -c 'import sys, tomllib; print(",".join(tomllib.load(open(sys.argv[1], "rb"))["env"]))' \
+        "${MISE_DIR}/miserc.toml"
+}
+
+# record <profile> <yes|no systemd>: what ztp.sh's main writes and exports.
+record() {
+    if [[ $2 == yes ]]; then has_systemd() { true; }; else has_systemd() { false; }; fi
+    env=$(profile_envs "$1")
+    write_profile "$1" "${env}"
+}
+
+record desktop yes
+check "desktop with systemd loads desktop and oomguard" same "${env}" "desktop,oomguard"
+check "and miserc.toml records both" same "$(recorded)" "desktop,oomguard"
+
+record headless yes
+check "headless with systemd (WSL) loads oomguard" same "${env}" "oomguard"
+check "and miserc.toml records it" same "$(recorded)" "oomguard"
+first="$(cat "${MISE_DIR}/miserc.toml")"
+record headless yes
+check "a re-run writes the same miserc.toml" same "$(cat "${MISE_DIR}/miserc.toml")" "${first}"
+
+record headless no
+check "headless without systemd (container) loads nothing" same "${env}" ""
+check "and miserc.toml records an empty list" same "$(recorded)" ""
+
+record desktop no
+check "desktop without systemd skips oomguard" same "$(recorded)" "desktop"
+
+echo "unmanaged" >"${MISE_DIR}/config.oomguard.toml"
+back_up_mise_config
+check "an unmanaged config.oomguard.toml is moved aside" \
+    test ! -e "${MISE_DIR}/config.oomguard.toml" -a -n "$(compgen -G "${MISE_DIR}/config.oomguard.toml.ztp-*")"
+
+printf '\n%s/%s passed\n' "$((total - failures))" "${total}"
+((failures == 0))

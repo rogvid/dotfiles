@@ -99,7 +99,8 @@ restic = "latest"
 #
 # This file is what every machine gets. Anything that only makes sense on a
 # physical Linux desktop lives in config.desktop.toml, loaded by the `desktop`
-# profile that ztp.sh records in ~/.config/mise/miserc.toml.
+# profile that ztp.sh records in ~/.config/mise/miserc.toml. earlyoom lives in
+# config.oomguard.toml, which ztp.sh adds wherever systemd runs as PID 1.
 # ---------------------------------------------------------------------------
 
 [dotfiles]
@@ -118,6 +119,7 @@ restic = "latest"
 # -- mise itself. The config that declares these links is one of them. -------
 "~/.config/mise/config.toml"         = { source = "~/.dotfiles/mise/.config/mise/config.toml" }
 "~/.config/mise/config.desktop.toml" = { source = "~/.dotfiles/mise/.config/mise/config.desktop.toml" }
+"~/.config/mise/config.oomguard.toml" = { source = "~/.dotfiles/mise/.config/mise/config.oomguard.toml" }
 # miserc.toml is deliberately not linked: it holds this machine's profile.
 
 # -- git. File-level: ~/.config/git and ~ hold unmanaged neighbours. ---------

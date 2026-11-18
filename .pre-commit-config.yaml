@@ -108,3 +108,10 @@ repos:
         language: system
         pass_filenames: false
         files: ^scripts/(\.local/bin/opencode-free|tests/test-opencode-free)$
+
+      - id: ztp-tests
+        name: ztp tests
+        entry: scripts/tests/test-ztp
+        language: system
+        pass_filenames: false
+        files: ^(ztp\.sh|scripts/tests/test-ztp)$

@@ -43,7 +43,7 @@ Then log in to claude once on each account you use.
 In tmux, M-1 shows Hugin in a popup and M-1 again hides it.
 Hugin is Rogvi's desk: the claude session that keeps track of all the other agents, defined in its own private repo, [rogvid/hugin](https://github.com/rogvid/hugin).
 Clone it once with `git-wt clone git@github.com:rogvid/hugin.git ~/personal/projects/hugin`.
-The first M-1 creates the tmux session `hugin` and starts `claude --agent hugin` in that repo's main worktree.
+The first M-1 creates the tmux session `hugin` and starts `claude --agent hugin --remote-control Hugin` in that repo's main worktree.
 Nothing else needs setting up by hand:
 
 - Claude's "trust this folder?" prompt, whose default answer exits, does not appear: `agent-orchestrator` marks that one folder trusted in the account's `.claude.json` before starting claude.

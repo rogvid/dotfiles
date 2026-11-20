@@ -11,7 +11,7 @@ It is the tmux session `hugin`, which M-1 shows in a popup on the user's screen 
 The agent-sidebar's settings hide it (`hide = ["hugin"]`), so the sidebar and the status bar leave it out, but `agent-scan --json` still lists it with `"hidden": true`.
 
 - Its home is the main worktree of its own private repo, `~/personal/projects/hugin/main` ([rogvid/hugin](https://github.com/rogvid/hugin)), so `agent-scan` shows its `project` as `hugin`.
-- It runs as `claude --agent hugin`; its identity is `profiles/hugin/IDENTITY.md` in that repo, its rules are in `lovir/`, its memory in `munin/memory/`.
+- It runs as `claude --agent hugin --remote-control Hugin`, so the Claude app lists it as `Hugin` (no other agent has Remote Control on); its identity is `profiles/hugin/IDENTITY.md` in that repo, its rules are in `lovir/`, its memory in `munin/memory/`.
   Change them in that repo, through a PR Rogvi approves.
 - Its pane, when it runs: `agent-scan --json | jq -r '.[] | select(.target | startswith("hugin:")) | .pane_id'`.
 - Message it like any other agent, with `agent-msg send PANE "..."` (agent-sidebar skill, section 3).
@@ -20,7 +20,7 @@ The agent-sidebar's settings hide it (`hide = ["hugin"]`), so the sidebar and th
 
 - `agent-orchestrator start` creates the session if there is none, without showing it, and prints its pane id.
   Start it only when the user asks.
-- It types `claude --agent hugin` into a shell in the home, on the claude account the tmux option `@agent-orchestrator-account` names (`tmux show-options -gv @agent-orchestrator-account`; `tmux.conf` sets it), else on the caller's.
+- It types `claude --agent hugin --remote-control Hugin` into a shell in the home, on the claude account the tmux option `@agent-orchestrator-account` names (`tmux show-options -gv @agent-orchestrator-account`; `tmux.conf` sets it), else on the caller's.
   The names are the ones `agent-sidebar-tmux accounts` lists.
   When this machine has no such account, it says so and starts nothing.
 - Without the hugin repo, it says how to clone it and starts nothing.

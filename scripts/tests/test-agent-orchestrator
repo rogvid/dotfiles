@@ -114,7 +114,8 @@ check "in Hugin's home, a real folder" equals \
     "t display-message -p -t =hugin: #{pane_current_path}" "${home}"
 check "and starts claude there on the default account" equals started \
     "$(realpath "${home}") default"
-check "as Hugin" equals "cat ${scratch}/args" "--agent hugin"
+check "as Hugin, reachable from the Claude app" equals "cat ${scratch}/args" \
+    "--agent hugin --remote-control Hugin"
 check "trusting the home on that account first" trusted "${HOME}/.claude.json"
 check "in a .claude.json only its owner can read" equals \
     "mode ${HOME}/.claude.json" 600

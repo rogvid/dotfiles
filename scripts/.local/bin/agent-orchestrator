@@ -10,10 +10,14 @@
 #   start    create Hugin's session if there is none, without
 #            showing it; prints its pane id
 #
-# Hugin is `claude --agent hugin`, in the tmux session "hugin". The first
-# toggle or start creates the session with a shell in Hugin's home and types
-# the command into it, so the session outlives claude and closing the popup
-# only hides it.
+# Hugin is `claude --agent hugin --remote-control Hugin`, in the tmux
+# session "hugin". The first toggle or start creates the session with a
+# shell in Hugin's home and types the command into it, so the session
+# outlives claude and closing the popup only hides it.
+#
+# Remote Control is on for Hugin alone, so the Claude app lists it as
+# "Hugin" and no other agent. The sidebar's restore starts an agent again
+# with the options it was started with, so a restored Hugin keeps it too.
 #
 # It runs on the claude account the tmux option @agent-orchestrator-account
 # names (agent-sidebar-tmux accounts lists the names; tmux.conf sets it).
@@ -31,6 +35,7 @@
 set -euo pipefail
 
 readonly session="hugin"
+readonly launch="claude --agent hugin --remote-control Hugin"
 readonly home="${HUGIN_HOME:-${HOME}/personal/projects/hugin/main}"
 
 usage() {
@@ -126,7 +131,7 @@ start() {
         "${session_env[@]}")"
     # Typed into the shell rather than run as the session's command, so the
     # session outlives claude.
-    tmux send-keys -t "${pane}" -l "claude --agent hugin"
+    tmux send-keys -t "${pane}" -l "${launch}"
     tmux send-keys -t "${pane}" Enter
     echo "${pane}"
 }

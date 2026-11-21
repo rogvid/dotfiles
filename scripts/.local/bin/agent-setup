@@ -8,7 +8,8 @@
 #   agent-setup            install what is missing
 #   agent-setup --check    report what would change, touch nothing
 #
-# Safe to re-run. Links only the skill adapters Claude Code needs, and runs the agent-sidebar
+# Safe to re-run. Links only the skill adapters Claude Code needs, adds the
+# AskUserQuestion hook to each Claude Code settings.json, and runs the agent-sidebar
 # plugin's agent-sidebar-setup - run
 # `mise bootstrap dotfiles apply` yourself once you are happy with what this reports.
 set -euo pipefail
@@ -63,6 +64,61 @@ install_skills() {
     fi
   done < "$SKILL_LIST"
   (( missing )) || say "all declared skills present"
+}
+
+# settings.json is Claude Code's own and not in this repo, so the one hook this
+# repo owns is merged in. `|| true` keeps a missing or broken script from
+# blocking the tool, and $HOME makes the command resolve without tmux's PATH.
+# shellcheck disable=SC2016 # $HOME is for the shell that runs the hook
+readonly QUESTION_GATE_COMMAND='"$HOME/.local/bin/agent-question-gate" || true'
+
+wire_question_gate() {
+  head_ "AskUserQuestion gate -> Claude Code settings"
+  command -v jq >/dev/null 2>&1 || { say "skipped - needs jq"; return 0; }
+  # Older jq rounds large numbers, which would change other settings' values.
+  if [[ "$(jq -c . <<<12345678901234567890)" != 12345678901234567890 ]]; then
+    say "skipped - needs jq 1.7 or newer"
+    return 0
+  fi
+  local cfg settings real current updated changed=0
+  local -A seen=()
+  for cfg in "${HOME}/.claude" "${HOME}"/.claude-*/; do
+    cfg="${cfg%/}"
+    [[ -d "$cfg" ]] || continue
+    settings="${cfg}/settings.json"
+    real="$(realpath -m "$settings")"
+    [[ -n "${seen[$real]:-}" ]] && continue
+    seen[$real]=1
+    current='{}'
+    if [[ -e "$real" ]]; then
+      current="$(cat "$real" 2>/dev/null)" || { say "skipped  ${settings} - cannot read it"; continue; }
+    fi
+    if ! jq -e 'type == "object"
+        and ((.hooks // {}) | type == "object")
+        and ((.hooks.PreToolUse // []) | type == "array")' <<<"$current" >/dev/null 2>&1; then
+      say "skipped  ${settings} - not a valid settings file"
+      continue
+    fi
+    if jq -e --arg command "$QUESTION_GATE_COMMAND" '
+        any(.hooks.PreToolUse[]?; .matcher? == "AskUserQuestion"
+          and any(.hooks[]?; .command? == $command))' <<<"$current" >/dev/null; then
+      continue
+    fi
+    changed=1
+    would "add the AskUserQuestion hook to ${settings}" || continue
+    updated="$(jq --arg command "$QUESTION_GATE_COMMAND" '
+      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{
+        matcher: "AskUserQuestion",
+        hooks: [{type: "command", command: $command, timeout: 5}]
+      }])' <<<"$current")"
+    mkdir -p "$(dirname "$real")"
+    # A copy first, so the replaced file keeps its mode.
+    [[ -e "$real" ]] && cp -p "$real" "${real}.partial"
+    printf '%s\n' "$updated" >"${real}.partial"
+    mv -f "${real}.partial" "$real"
+    say "added    ${settings}"
+  done
+  (( changed )) || say "every valid settings.json has the hook"
 }
 
 # Every harness but Claude Code reads ~/.agents/skills natively. Claude Code reads
@@ -150,6 +206,7 @@ main() {
   install_peon_ping
   install_skills
   link_claude_skills
+  wire_question_gate
   install_tmux_plugins
   agent_sidebar_setup
   report_undeclared

@@ -23,7 +23,9 @@ repo="$(cd "$(dirname "$0")/../.." && pwd)"
 readonly repo
 scratch="$(mktemp -d)"
 readonly scratch
-trap 'rm -rf "${scratch}"' EXIT
+readonly socket="agent-setup-test-$$"
+tm() { env -u TMUX -u TMUX_PANE tmux -L "${socket}" -f /dev/null "$@"; }
+trap 'tm kill-server 2>/dev/null || true; rm -rf "${scratch}"' EXIT
 
 export HOME="${scratch}/home"
 export DOTFILES="${scratch}/dotfiles"
@@ -72,6 +74,27 @@ printf '#!/bin/sh\necho "tpm install" >>"%s/plugin-runs"\n' "${scratch}" \
     >"${HOME}/.tmux/plugins/tpm/bin/install_plugins"
 chmod +x "${HOME}/.tmux/plugins/tpm/bin/install_plugins"
 
+# Settings: one file with values jq could damage, an account linking it the
+# way the README says, an account with none, and one that is not valid JSON.
+readonly settings="${HOME}/.claude/settings.json"
+cat >"${settings}" <<'JSON'
+{
+  "theme": "dark",
+  "big": 12345678901234567890,
+  "decimal": 1.10,
+  "text": "æ \"quoted\" é",
+  "hooks": {
+    "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "keep-me"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "keep-me-too"}]}]
+  }
+}
+JSON
+chmod 600 "${settings}"
+cp -p "${settings}" "${scratch}/settings.before"
+ln -s ../.claude/settings.json "${HOME}/.claude-work/settings.json"
+mkdir -p "${HOME}/.claude-fresh" "${HOME}/.claude-broken"
+printf 'not json\n' >"${HOME}/.claude-broken/settings.json"
+
 failures=0
 total=0
 
@@ -99,8 +122,27 @@ check "--check links nothing" not test -e "${work}/agent-sidebar"
 check "--check removes nothing" test -L "${claude}/gone"
 check "--check installs no tmux plugins" not grep -q "tpm install" "${scratch}/plugin-runs"
 check "--check runs the plugin's setup with --check" same "$(cat "${scratch}/plugin-runs")" "plugin setup --check"
+check "--check reports the missing hook" contains "${out}" "would: add the AskUserQuestion hook to ${settings}"
+check "--check leaves settings.json alone" cmp -s "${settings}" "${scratch}/settings.before"
+check "--check creates no settings.json" not test -e "${HOME}/.claude-fresh/settings.json"
 
 out="$(agent-setup 2>&1)"
+gate_entries() {
+    jq '[.hooks.PreToolUse[] | select(.matcher == "AskUserQuestion")] | length' "$1"
+}
+others() { jq -S 'del(.hooks.PreToolUse[] | select(.matcher == "AskUserQuestion"))' "$1"; }
+check "the hook is added once" same "$(gate_entries "${settings}")" 1
+check "every other key keeps its value" same "$(others "${settings}")" "$(jq -S . "${scratch}/settings.before")"
+check "a large number stays exact" grep -q '"big": 12345678901234567890,' "${settings}"
+check "a decimal stays as written" grep -q '"decimal": 1.10,' "${settings}"
+check "settings.json keeps its mode" same "$(stat -c %a "${settings}")" 600
+check "a linked settings.json stays a link" test -L "${HOME}/.claude-work/settings.json"
+check "and is written only once" same "$(grep -c '^  added ' <<<"${out}")" 2
+check "an account without settings gets the hook" same "$(gate_entries "${HOME}/.claude-fresh/settings.json")" 1
+check "invalid settings are not overwritten" same "$(cat "${HOME}/.claude-broken/settings.json")" "not json"
+check "and the run says so" \
+    contains "${out}" "skipped  ${HOME}/.claude-broken/settings.json - not a valid settings file"
+cp -p "${settings}" "${scratch}/settings.after"
 check "an account's config dir gets every pool skill" links_to_pool "${work}/agent-sidebar" agent-sidebar
 check "and the other one" links_to_pool "${work}/grilling" grilling
 check "the links are relative, like npx skills makes them" \
@@ -125,6 +167,119 @@ check "an undeclared skill from elsewhere still is" contains "$(undeclared "${ou
 out="$(agent-setup 2>&1)"
 check "a second run changes nothing" \
     contains "${out}" "every Claude Code config dir links every pool skill"
+check "a second run leaves settings.json byte-identical" cmp -s "${settings}" "${scratch}/settings.after"
+check "and reports the hook as present" contains "${out}" "every valid settings.json has the hook"
+
+# --- the registered command ---------------------------------------------------
+registered="$(jq -r '.hooks.PreToolUse[] | select(.matcher == "AskUserQuestion") | .hooks[0].command' "${settings}")"
+readonly registered
+run_registered() {
+    registered_status=0
+    registered_out="$(env -u TMUX -u TMUX_PANE PATH=/usr/bin:/bin sh -c "${registered}" </dev/null 2>/dev/null)" \
+        || registered_status=$?
+}
+run_registered
+check "a missing hook script does not block the tool" same "${registered_status}:${registered_out}" "0:"
+mkdir -p "${HOME}/.local/bin"
+printf '#!/bin/sh\necho broken >&2\nexit 2\n' >"${HOME}/.local/bin/agent-question-gate"
+chmod +x "${HOME}/.local/bin/agent-question-gate"
+run_registered
+check "nor does one that exits 2, Claude Code's block code" same "${registered_status}:${registered_out}" "0:"
+printf '#!/bin/sh\necho resolved\n' >"${HOME}/.local/bin/agent-question-gate"
+run_registered
+check "it resolves outside tmux, without ~/.local/bin on PATH" same "${registered_out}" "resolved"
+rm "${HOME}/.local/bin/agent-question-gate"
+
+# --- the gate, on a throwaway tmux server --------------------------------------
+# A real PreToolUse input recorded from Claude Code 2.1.330, with its ids and
+# paths replaced.
+read -r -d '' payload <<'JSON' || true
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/tmp/agent-setup-test/transcript.jsonl",
+  "cwd": "/tmp/agent-setup-test",
+  "scratchpad_dir": "/tmp/agent-setup-test/scratchpad",
+  "prompt_id": "00000000-0000-4000-8000-000000000001",
+  "permission_mode": "auto",
+  "effort": {"level": "medium"},
+  "hook_event_name": "PreToolUse",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Tea or coffee?",
+        "header": "Drink",
+        "options": [
+          {"label": "Tea", "description": "Tea"},
+          {"label": "Coffee", "description": "Coffee"}
+        ],
+        "multiSelect": false
+      }
+    ]
+  },
+  "tool_use_id": "toolu_00000000000000000000000000"
+}
+JSON
+readonly payload
+
+new_pane() { tm new-session -d -P -F '#{pane_id}' -s "$1" -x 80 -y 24 'sleep 600'; }
+hugin_pane="$(new_pane hugin)"
+worker_pane="$(new_pane worker)"
+# Its name starts with "hugin", so only an exact match tells them apart.
+lookalike_pane="$(new_pane hugin-notes)"
+tmux_env="$(tm display-message -p -t "${worker_pane}" '#{socket_path},#{pid},0')"
+readonly tmux_env worker_pane lookalike_pane
+
+gate() {
+    local pane="$1" input="$2"
+    gate_status=0
+    gate_out="$(TMUX="${tmux_env}" TMUX_PANE="${pane}" agent-question-gate <<<"${input}" 2>/dev/null)" \
+        || gate_status=$?
+}
+allowed() { [[ "${gate_status}" == 0 && -z "${gate_out}" ]]; }
+denied_towards() {
+    [[ "${gate_status}" == 0 ]] && jq -e --arg pane "$1" '.hookSpecificOutput
+        | .hookEventName == "PreToolUse" and .permissionDecision == "deny"
+        and (.permissionDecisionReason | contains("agent-msg send " + $pane + " "))
+        and (.permissionDecisionReason | contains("privacy, security, quality, simplicity or long-term maintainability"))
+        and (.permissionDecisionReason | contains("then end your turn"))' <<<"${gate_out}" >/dev/null
+}
+
+gate "${worker_pane}" "${payload}"
+check "another session is denied, pointed at Hugin's pane" denied_towards "${hugin_pane}"
+gate "${lookalike_pane}" "${payload}"
+check "so is a session whose name only starts with hugin" denied_towards "${hugin_pane}"
+gate "${hugin_pane}" "${payload}"
+check "Hugin's own pane is allowed" allowed
+
+gate_status=0
+gate_out="$(env -u TMUX -u TMUX_PANE agent-question-gate <<<"${payload}" 2>/dev/null)" || gate_status=$?
+check "a session outside tmux is allowed" allowed
+
+gate "${worker_pane}" "not json"
+check "a malformed payload fails open" allowed
+gate "${worker_pane}" ""
+check "an empty payload fails open" allowed
+gate "${worker_pane}" "$(jq '.tool_name = "Bash"' <<<"${payload}")"
+check "another tool is not touched" allowed
+gate "%999999" "${payload}"
+check "a pane that no longer exists fails open" allowed
+
+mkdir -p "${scratch}/broken-tmux"
+printf '#!/bin/sh\nexit 1\n' >"${scratch}/broken-tmux/tmux"
+chmod +x "${scratch}/broken-tmux/tmux"
+gate_status=0
+gate_out="$(PATH="${scratch}/broken-tmux:${PATH}" TMUX="${tmux_env}" TMUX_PANE="${worker_pane}" \
+    agent-question-gate <<<"${payload}" 2>/dev/null)" || gate_status=$?
+check "a failing tmux fails open" allowed
+
+tm kill-session -t '=hugin'
+gate "${worker_pane}" "${payload}"
+check "without a hugin session the tool is allowed" allowed
+
+hugin_pane="$(new_pane hugin)"
+gate "${worker_pane}" "${payload}"
+check "a restarted Hugin's new pane id is the one named" denied_towards "${hugin_pane}"
 
 rm "${HOME}/.claude/hooks/peon-ping/peon.sh"
 out="$(agent-setup --check 2>&1 || true)"

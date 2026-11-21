@@ -47,6 +47,8 @@ cat >"${scratch}/bin/claude" <<EOF
 #!/bin/sh
 echo "\$(pwd -P) \${CLAUDE_CONFIG_DIR:-default}" >>"${scratch}/started"
 echo "\$*" >>"${scratch}/args"
+# Stays running, so agent-scan sees it as the agent it stands in for.
+sleep 600
 EOF
 chmod +x "${scratch}/bin/"*
 
@@ -55,6 +57,10 @@ t() { tmux -L "${socket}" "$@"; }
 # The test server's jobs - the binding - inherit this environment.
 export PATH="${scratch}/bin:${repo}/scripts/.local/bin:${plugin}/bin:${PATH}"
 unset TMUX TMUX_PANE
+# agent-scan is a uv script: its cache and Python stay where they are.
+UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
+UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$(uv python dir)}"
+export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
 export HOME="${scratch}/home" XDG_CONFIG_HOME="${scratch}/home/.config"
 # An agent running this test would hand its own account on to the session.
 unset CLAUDE_CONFIG_DIR CODEX_HOME PI_CODING_AGENT_DIR
@@ -174,6 +180,26 @@ check "trust is added to an existing .claude.json" trusted "${HOME}/.claude.json
 check "keeping everything else in it" equals \
     "jq -c [.numStartups,.projects[\"/elsewhere\"]] ${HOME}/.claude.json" '[7,{"allowedTools":[]}]'
 check "start on an existing session prints its pane" equals "act start" "${pane}"
+
+# The active pane can be a shell split beside Hugin.
+shell_pane="$(t split-window -P -F '#{pane_id}' -t =hugin:)"
+check "a shell split beside Hugin has the focus" equals \
+    "t display-message -p -t =hugin: #{pane_id}" "${shell_pane}"
+check "pane still names the agent" equals "act pane" "${pane}"
+check "and so does start" equals "act start" "${pane}"
+second_agent="$(t split-window -P -F '#{pane_id}' -t "${pane}" 'claude --agent hugin')"
+check "two Hugin agents: pane refuses" not act pane
+check "and so does start" not act start
+t kill-pane -t "${second_agent}"
+check "back to one agent" equals "act pane" "${pane}"
+t respawn-pane -k -t "${pane}"
+check "no Hugin agent: pane refuses" not act pane
+check "and so does start" not act start
+check "rather than naming the shell" not equals "act pane" "${shell_pane}"
+press M-1
+check "M-1 still opens a session whose agent has exited" equals clients "hugin main "
+press M-1
+check "and closes it" equals clients "main "
 
 # The account comes from @agent-orchestrator-account, as the one
 # agent-sidebar-tmux accounts lists by that name.

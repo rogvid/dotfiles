@@ -99,7 +99,7 @@ repos:
         entry: scripts/tests/test-agent-setup
         language: system
         pass_filenames: false
-        files: ^scripts/(\.local/bin/agent-setup|tests/test-agent-setup)$
+        files: ^scripts/(\.local/bin/(agent-setup|agent-question-gate|agent-orchestrator)|tests/test-agent-setup)$
 
       # A stand-in opencode that runs tmux, against a stand-in user server.
       - id: opencode-free-tests

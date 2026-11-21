@@ -60,8 +60,13 @@ def _scrub_event(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:
     """Last check on errors and transactions before they leave for Sentry."""
     if isinstance(event.get("request"), dict):
         _scrub_request(event["request"])
-    if isinstance(event.get("user"), dict):
-        event["user"].pop("ip_address", None)
+    # Sentry fills in a city from the connection's address unless the event
+    # already has a location, whatever the IP settings say. An empty one
+    # stores none.
+    user = event.get("user") if isinstance(event.get("user"), dict) else {}
+    user.pop("ip_address", None)
+    user["geo"] = {}
+    event["user"] = user
     crumbs = event.get("breadcrumbs")
     for crumb in crumbs.get("values", []) if isinstance(crumbs, dict) else crumbs or []:
         data = crumb.get("data") or {}

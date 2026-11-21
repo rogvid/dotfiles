@@ -90,7 +90,11 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
       }
     }
   }
-  if (event.user) delete event.user.ip_address;
+  // Sentry fills in a city from the connection's address unless the event
+  // already has a location, whatever the IP settings say. An empty one stores
+  // none.
+  event.user = { ...event.user, geo: {} };
+  delete event.user.ip_address;
   for (const crumb of event.breadcrumbs ?? []) {
     for (const key of ['url', 'to', 'from'] as const) {
       const value = crumb.data?.[key];

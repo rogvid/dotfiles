@@ -8,6 +8,7 @@ sends a request full of private data the way Caddy would forward it, and
 checks none of it is in anything the SDK tries to send.
 """
 import json
+import re
 import logging
 
 import pytest
@@ -86,3 +87,5 @@ def test_nothing_private_reaches_sentry(captured):
     assert "boom in a login-like handler" in sent, "the error itself must still be reported"
     leaks = {value: sent.count(value) for value in PRIVATE if value in sent}
     assert not leaks, f"private data sent to Sentry: {leaks}\n{json.dumps(captured.sent)[:3000]}"
+    # An empty location, or Sentry fills in a city from the connection.
+    assert re.search(r'"geo":\s*\{\}', sent), "the error must carry an empty user.geo"

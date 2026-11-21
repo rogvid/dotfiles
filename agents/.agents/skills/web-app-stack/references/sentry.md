@@ -36,6 +36,7 @@ Users are real people, often in a small community where a name, an IP or a searc
 Nothing that identifies a user, or that a user typed, goes to Sentry:
 
 - no IP addresses, from the connection or from `X-Forwarded-For` and similar headers (Caddy sets them);
+- no location: Sentry derives a city from the connection's address unless the event already has one, even with IPs not stored and `ip_address` empty, so every event carries an empty `user.geo` (seen on real events, 21 November 2026);
 - no cookies, auth headers or tokens;
 - no request or response bodies (logins, registrations, messages);
 - no query strings (reset links carry tokens, OAuth callbacks carry codes, searches carry what people typed);

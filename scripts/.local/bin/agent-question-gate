@@ -3,8 +3,8 @@
 #
 # A dialog blocks its pane and Hugin may not answer it. So while the tmux
 # session "hugin" runs, every other tmux session is denied the tool and told
-# how to reach Hugin instead. Outside tmux, in Hugin, or without Hugin, the
-# tool works as usual.
+# how to reach Hugin instead. Outside tmux, in Hugin's session, or without
+# exactly one running Hugin agent, the tool works as usual.
 #
 # No output and exit 0 allows the tool. Any error of this script's own ends
 # there too, so a broken gate can never wedge a session.
@@ -26,8 +26,9 @@ main() {
     return 0
   fi
 
+  # Without exactly one Hugin agent, nobody could answer the question.
   local hugin_pane
-  hugin_pane="$(tmux display-message -p -t "=${hugin_session}:" '#{pane_id}')"
+  hugin_pane="$(agent-orchestrator pane 2>/dev/null)" || return 0
   [[ "${hugin_pane}" =~ ^%[0-9]+$ ]] || return 0
 
   jq -n --arg pane "${hugin_pane}" '{

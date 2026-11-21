@@ -33,7 +33,7 @@ Project specific configuration takes precedence over anything here.
 
 ## Asking questions
 
-- While the tmux session `hugin` runs, a hook denies AskUserQuestion to every other tmux session.
+- While Hugin runs in the tmux session `hugin`, a hook denies AskUserQuestion to every other tmux session.
 - Decide yourself anything that privacy, security, quality, simplicity or long-term maintainability settles, and name the decision in your report.
 - Send anything else to Hugin with `agent-msg send <Hugin's pane id> "..."`, with the options and your recommendation, then end your turn.
 - The answer is pasted into your pane.

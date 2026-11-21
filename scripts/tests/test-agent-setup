@@ -23,6 +23,16 @@ repo="$(cd "$(dirname "$0")/../.." && pwd)"
 readonly repo
 scratch="$(mktemp -d)"
 readonly scratch
+# The gate finds Hugin with the real agent-scan, a uv script whose cache and
+# Python stay where they are when HOME changes below.
+readonly scan_plugin="${AGENT_SIDEBAR_PLUGIN:-${HOME}/.tmux/plugins/agent-sidebar}"
+if [[ ! -x "${scan_plugin}/bin/agent-scan" ]]; then
+    echo "no agent-sidebar plugin at ${scan_plugin}; set AGENT_SIDEBAR_PLUGIN" >&2
+    exit 2
+fi
+UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
+UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$(uv python dir)}"
+export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
 readonly socket="agent-setup-test-$$"
 tm() { env -u TMUX -u TMUX_PANE tmux -L "${socket}" -f /dev/null "$@"; }
 trap 'tm kill-server 2>/dev/null || true; rm -rf "${scratch}"' EXIT
@@ -37,7 +47,7 @@ for cmd in curl npx; do
     printf '#!/bin/sh\necho "%s must not run" >&2\nexit 1\n' "${cmd}" >"${stubs}/${cmd}"
     chmod +x "${stubs}/${cmd}"
 done
-export PATH="${stubs}:${repo}/scripts/.local/bin:${PATH}"
+export PATH="${stubs}:${repo}/scripts/.local/bin:${scan_plugin}/bin:${PATH}"
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 ln -s "${DOTFILES}/agents/.agents" "${HOME}/.agents"
 printf '#!/bin/sh\n' >"${HOME}/.claude/hooks/peon-ping/peon.sh"
@@ -222,8 +232,17 @@ read -r -d '' payload <<'JSON' || true
 JSON
 readonly payload
 
-new_pane() { tm new-session -d -P -F '#{pane_id}' -s "$1" -x 80 -y 24 'sleep 600'; }
-hugin_pane="$(new_pane hugin)"
+# A process named claude, started the way Hugin is, for agent-scan to find.
+mkdir -p "${scratch}/agent-bin"
+printf '#!/bin/sh\nsleep 600\n' >"${scratch}/agent-bin/claude"
+chmod +x "${scratch}/agent-bin/claude"
+readonly hugin_agent="${scratch}/agent-bin/claude --agent hugin --remote-control Hugin"
+
+new_pane() { tm new-session -d -P -F '#{pane_id}' -s "$1" -x 80 -y 24 "${2:-sleep 600}"; }
+hugin_pane="$(new_pane hugin "${hugin_agent}")"
+# Split last, so the shell and not the agent is the session's active pane.
+hugin_shell="$(tm split-window -P -F '#{pane_id}' -t =hugin: 'sleep 600')"
+readonly hugin_shell
 worker_pane="$(new_pane worker)"
 # Its name starts with "hugin", so only an exact match tells them apart.
 lookalike_pane="$(new_pane hugin-notes)"
@@ -245,12 +264,37 @@ denied_towards() {
         and (.permissionDecisionReason | contains("then end your turn"))' <<<"${gate_out}" >/dev/null
 }
 
+lookup() { TMUX="${tmux_env}" agent-orchestrator pane 2>/dev/null; }
+# agent-scan reads the process table, so a pane just changed takes a moment.
+lookup_finds() {
+    local _
+    for _ in $(seq 60); do
+        [[ "$(lookup)" == "$1" ]] && return 0
+        sleep 0.05
+    done
+    return 1
+}
+lookup_refuses() {
+    local _
+    for _ in $(seq 60); do
+        lookup >/dev/null || return 0
+        sleep 0.05
+    done
+    return 1
+}
+
+check "the shell beside Hugin has the focus" \
+    same "$(tm display-message -p -t =hugin: '#{pane_id}')" "${hugin_shell}"
+check "the lookup finds the agent, not the focused shell" lookup_finds "${hugin_pane}"
 gate "${worker_pane}" "${payload}"
 check "another session is denied, pointed at Hugin's pane" denied_towards "${hugin_pane}"
+check "and not at the focused shell" not contains "${gate_out}" "agent-msg send ${hugin_shell} "
 gate "${lookalike_pane}" "${payload}"
 check "so is a session whose name only starts with hugin" denied_towards "${hugin_pane}"
 gate "${hugin_pane}" "${payload}"
 check "Hugin's own pane is allowed" allowed
+gate "${hugin_shell}" "${payload}"
+check "and so is a shell in Hugin's session" allowed
 
 gate_status=0
 gate_out="$(env -u TMUX -u TMUX_PANE agent-question-gate <<<"${payload}" 2>/dev/null)" || gate_status=$?
@@ -273,11 +317,24 @@ gate_out="$(PATH="${scratch}/broken-tmux:${PATH}" TMUX="${tmux_env}" TMUX_PANE="
     agent-question-gate <<<"${payload}" 2>/dev/null)" || gate_status=$?
 check "a failing tmux fails open" allowed
 
+second_agent="$(tm split-window -P -F '#{pane_id}' -t "${hugin_pane}" "${hugin_agent}")"
+check "two Hugin agents are not one" lookup_refuses
+gate "${worker_pane}" "${payload}"
+check "so the tool is allowed" allowed
+tm kill-pane -t "${second_agent}"
+check "one Hugin agent again" lookup_finds "${hugin_pane}"
+
+tm respawn-pane -k -t "${hugin_pane}" "${scratch}/agent-bin/claude"
+check "a claude that is not Hugin is no Hugin agent" lookup_refuses
+gate "${worker_pane}" "${payload}"
+check "so with no Hugin agent the tool is allowed" allowed
+
 tm kill-session -t '=hugin'
 gate "${worker_pane}" "${payload}"
 check "without a hugin session the tool is allowed" allowed
 
-hugin_pane="$(new_pane hugin)"
+hugin_pane="$(new_pane hugin "${hugin_agent}")"
+check "a restarted Hugin is found" lookup_finds "${hugin_pane}"
 gate "${worker_pane}" "${payload}"
 check "a restarted Hugin's new pane id is the one named" denied_towards "${hugin_pane}"
 

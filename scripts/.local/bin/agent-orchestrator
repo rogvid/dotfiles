@@ -8,7 +8,10 @@
 #            are in it (M-1; the default). In another popup, such as M-3's,
 #            it takes that one's place rather than open inside it.
 #   start    create Hugin's session if there is none, without
-#            showing it; prints its pane id
+#            showing it; prints the pane running Hugin, and fails when
+#            an existing session does not have exactly one
+#   pane     print the pane running the Hugin agent; fails unless there
+#            is exactly one
 #
 # Hugin is `claude --agent hugin --remote-control Hugin`, in the tmux
 # session "hugin". The first toggle or start creates the session with a
@@ -111,13 +114,31 @@ trust_home() {
     fi
 }
 
+# The one pane in Hugin's session whose process tree runs `--agent hugin`, as
+# agent-scan reads it. The session's active pane can be a shell split beside it.
+agent_pane() {
+    local panes
+    panes="$(agent-scan --json | jq -r --arg prefix "${session}:" \
+        '.[] | select(.role == "hugin" and (.target | startswith($prefix))) | .pane_id')" || return 1
+    # Two panes are two lines, which this does not match.
+    [[ "${panes}" =~ ^%[0-9]+$ ]] || return 1
+    echo "${panes}"
+}
+
 start() {
-    local pane
-    local -a session_env=()
     if tmux has-session -t "=${session}" 2>/dev/null; then
-        tmux display-message -p -t "=${session}:" '#{pane_id}'
+        agent_pane || {
+            complain "session ${session} does not have exactly one Hugin agent"
+            return 1
+        }
         return 0
     fi
+    create_session
+}
+
+create_session() {
+    local pane
+    local -a session_env=()
     if [[ ! -e "${home}/.claude/agents/hugin.md" ]]; then
         complain "no Hugin at ${home} - run: git-wt clone git@github.com:rogvid/hugin.git ~/personal/projects/hugin"
         return 1
@@ -167,7 +188,10 @@ toggle() {
         fi
         return 0
     fi
-    start >/dev/null || return 0
+    # Not `start`: a session whose agent has exited still opens.
+    if ! tmux has-session -t "=${session}" 2>/dev/null; then
+        create_session >/dev/null || return 0
+    fi
     # The popup's client attaches to this server by its socket: a bare
     # tmux in there would reach the default one.
     socket="$(tmux display-message -p '#{socket_path}')"
@@ -177,7 +201,7 @@ toggle() {
 
 command="toggle"
 case "${1:-toggle}" in
-toggle | start) command="${1:-toggle}" ;;
+toggle | start | pane) command="${1:-toggle}" ;;
 -h | --help)
     usage
     exit 0
@@ -191,4 +215,5 @@ esac
 case "${command}" in
 toggle) toggle ;;
 start) start ;;
+pane) agent_pane ;;
 esac

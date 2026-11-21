@@ -41,7 +41,8 @@ Nothing that identifies a user, or that a user typed, goes to Sentry:
 - no request or response bodies (logins, registrations, messages);
 - no query strings (reset links carry tokens, OAuth callbacks carry codes, searches carry what people typed);
 - no stack-frame local variables (they hold whole requests and, in auth handlers, passwords);
-- no user fields filled in automatically; set an opaque user ID by hand only if it helps triage.
+- no user fields filled in automatically; set an opaque user ID by hand only if it helps triage;
+- no Session Replay (Sampling and quota says why).
 
 Stack traces, routes (`/listings/{id}`), status codes, timings and release are what Sentry is for, and enough.
 
@@ -63,7 +64,7 @@ The free plan has small quotas, so:
 - the health endpoint is never traced: the Compose healthcheck polls it every 30 s (the template's `traces_sampler` drops it);
 - API traces at 1.0 while traffic is small (`SENTRY_TRACES_SAMPLE_RATE` lowers it), following the browser's decision when a trace comes in from it;
 - browser traces at 0.2 in production, 1.0 in development;
-- Session Replay only around errors: `replaysSessionSampleRate: 0`, `replaysOnErrorSampleRate: 1.0`; it masks all text and inputs by default, keep it that way;
+- no Session Replay: Sentry stores the visitor's location on every replay, derived from the address the events arrive from (Caddy's `X-Forwarded-For` through a tunnel route), and ignores an empty `user.geo` there (seen on burtur's replays, 21 November 2026); leave `replayIntegration` out and both replay sample rates unset;
 - no profiling until something is slow.
 
 ## Source maps
